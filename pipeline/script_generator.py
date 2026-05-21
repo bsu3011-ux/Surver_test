@@ -3,6 +3,13 @@ Script Generator for 어쩌다지식 YouTube Pipeline.
 
 Uses Claude claude-opus-4-7 (via Anthropic SDK) to generate Korean narration scripts
 with per-scene image prompts, structured as a friendly talk-style video.
+
+Now includes Emotion Spine metadata per scene:
+  - emotion: narrative arc emotion label
+  - tts_ssml_hint: brief hint for TTS prosody
+  - ken_burns: camera movement type for image animation
+  - bgm_intensity: BGM volume level (0.0–1.0)
+  - image_composition: framing style for image generation
 """
 
 from __future__ import annotations
@@ -30,8 +37,15 @@ class Scene:
 
     index: int
     narration: str          # Korean narration text spoken by TTS
-    image_prompt: str       # English prompt for Imagen
+    image_prompt: str       # English prompt for image AI
     duration_estimate: float  # Estimated duration in seconds
+
+    # --- Emotion Spine (drives TTS prosody, Ken Burns, BGM, image composition) ---
+    emotion: str = "neutral"        # hook / curious / surprising / calm / building / warm / cta
+    tts_ssml_hint: str = ""         # e.g. "pause_before_stat", "slow_emphasis", "excited_pace"
+    ken_burns: str = "slow_zoom"    # slow_zoom / fast_zoom / pan_left / pan_right / static
+    bgm_intensity: float = 0.5      # 0.0–1.0, drives BGM volume at this scene
+    image_composition: str = "wide" # wide / closeup / abstract / infographic / split_screen
 
 
 @dataclass
@@ -69,6 +83,21 @@ class ScriptResult:
 
 
 # ---------------------------------------------------------------------------
+# Narrative arc defaults — used both as fallback for parsing and as
+# documentation for Claude in the system prompt.
+# ---------------------------------------------------------------------------
+
+NARRATIVE_ARC_DEFAULTS = {
+    "hook":       {"emotion": "surprising", "bgm_intensity": 0.75, "ken_burns": "fast_zoom",  "image_composition": "wide"},
+    "curious":    {"emotion": "curious",    "bgm_intensity": 0.40, "ken_burns": "pan_right",  "image_composition": "wide"},
+    "calm":       {"emotion": "calm",       "bgm_intensity": 0.30, "ken_burns": "slow_zoom",  "image_composition": "abstract"},
+    "building":   {"emotion": "building",   "bgm_intensity": 0.65, "ken_burns": "slow_zoom",  "image_composition": "infographic"},
+    "surprising": {"emotion": "surprising", "bgm_intensity": 0.80, "ken_burns": "fast_zoom",  "image_composition": "closeup"},
+    "warm":       {"emotion": "warm",       "bgm_intensity": 0.25, "ken_burns": "pan_left",   "image_composition": "wide"},
+    "cta":        {"emotion": "cta",        "bgm_intensity": 0.20, "ken_burns": "static",     "image_composition": "wide"},
+}
+
+# ---------------------------------------------------------------------------
 # System prompt
 # ---------------------------------------------------------------------------
 
@@ -101,19 +130,87 @@ SYSTEM_PROMPT = """당신은 한국 유튜브 채널 '어쩌다지식'의 전문
 - 텍스트나 글자가 들어가지 않도록 (no text, no letters)
 - 항상 구체적이고 묘사적으로
 
-JSON 응답 형식 (반드시 이 형식으로):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Emotion Spine — 각 씬마다 반드시 포함해야 하는 메타데이터
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+각 씬의 감정 흐름과 영상 제작 파라미터를 함께 출력해야 합니다.
+이 메타데이터는 TTS 음성 톤, 이미지 카메라 효과, BGM 볼륨, 이미지 구도를 자동으로 제어합니다.
+
+[emotion 필드]
+반드시 다음 중 하나: hook | curious | surprising | calm | building | warm | cta
+- hook: 첫 씬, 임팩트 있는 오프닝
+- curious: 궁금증 유발, 탐구 분위기
+- surprising: 반전, 충격적인 사실 공개
+- calm: 차분하게 설명하는 구간
+- building: 점점 고조되는 긴장감
+- warm: 따뜻한 마무리, 공감
+- cta: 구독/좋아요 유도
+
+[tts_ssml_hint 필드]
+TTS 엔진에게 전달할 짧은 영어 힌트 (한 단어 또는 짧은 구):
+- "pause_before_stat" — 통계/숫자 직전에 짧은 침묵 삽입
+- "slow_emphasis" — 핵심 내용을 느리고 강조하여 읽음
+- "excited_pace" — 빠르고 신나는 톤
+- "slow_whisper" — 비밀 공개하듯 천천히
+- "emphasize_number" — 숫자를 강조하여 읽음
+- "normal" — 기본 톤
+
+[ken_burns 필드]
+반드시 다음 중 하나: slow_zoom | fast_zoom | pan_left | pan_right | static
+- slow_zoom: 천천히 확대 (차분한 설명)
+- fast_zoom: 빠른 줌인 (임팩트, 훅)
+- pan_left: 왼쪽으로 패닝 (마무리, 여운)
+- pan_right: 오른쪽으로 패닝 (탐구, 진행)
+- static: 움직임 없음 (CTA, 안정감)
+
+[bgm_intensity 필드]
+0.0 ~ 1.0 사이의 소수 — BGM 볼륨 조절값
+- 0.75 이상: 에너지 넘치는 구간 (훅, 반전)
+- 0.40~0.65: 중간 긴장감 (본론, building)
+- 0.30 이하: 조용하고 집중되는 구간 (설명, CTA)
+
+[image_composition 필드]
+반드시 다음 중 하나: wide | closeup | abstract | infographic | split_screen
+- wide: 전체 장면 (배경 강조)
+- closeup: 클로즈업 (감정, 디테일)
+- abstract: 추상적 시각화 (개념, 아이디어)
+- infographic: 정보 시각화 (데이터, 통계)
+- split_screen: 대비/비교 구도
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+내러티브 아크 (Narrative Arc) — 8-12씬 구조
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+씬 번호별 권장 Emotion Spine 값:
+- Scene 0 (훅):       emotion=hook,       bgm_intensity=0.75, ken_burns=fast_zoom, image_composition=wide
+- Scene 1 (문제제기):  emotion=curious,    bgm_intensity=0.40, ken_burns=pan_right, image_composition=wide
+- Scene 2~N-3 (본론): emotion=calm 또는 building 교대, bgm_intensity=0.30~0.65, ken_burns=slow_zoom, image_composition=abstract 또는 infographic
+- Scene N-2 (클라이맥스): emotion=surprising, bgm_intensity=0.80, ken_burns=fast_zoom, image_composition=closeup
+- Scene N-1 (마무리):  emotion=warm,       bgm_intensity=0.25, ken_burns=pan_left,  image_composition=wide
+- Scene N (CTA):      emotion=cta,        bgm_intensity=0.20, ken_burns=static,    image_composition=wide
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+JSON 응답 형식 (반드시 이 형식으로, 다른 텍스트 없이 순수 JSON만)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 {
   "title": "클릭하고 싶어지는 한국어 제목 (40자 이내)",
   "seo_title": "검색 최적화된 제목 변형 (키워드 포함, 50자 이내)",
   "description": "영상 내용을 2-3문장으로 요약한 한국어 설명",
   "seo_description": "유튜브 설명란용 전체 텍스트 (해시태그 포함)",
-  "tags": ["태그1", "태그2", ...],
+  "tags": ["태그1", "태그2"],
   "scenes": [
     {
       "index": 0,
       "narration": "한국어 나레이션 텍스트",
       "image_prompt": "English image prompt for AI illustration",
-      "duration_estimate": 45.0
+      "duration_estimate": 35.0,
+      "emotion": "hook",
+      "tts_ssml_hint": "pause_before_stat",
+      "ken_burns": "fast_zoom",
+      "bgm_intensity": 0.75,
+      "image_composition": "wide"
     }
   ]
 }"""
@@ -166,7 +263,7 @@ class ScriptGenerator:
             topic: Topic object with title_idea, category, keywords, hook.
 
         Returns:
-            ScriptResult with title, description, scenes, tags, etc.
+            ScriptResult with title, description, scenes (including Emotion Spine), tags, etc.
 
         Raises:
             ValueError: If API response cannot be parsed.
@@ -267,30 +364,110 @@ class ScriptGenerator:
             logger.error(f"Failed to parse Claude JSON response: {e}\nRaw: {raw[:500]}")
             raise ValueError(f"Claude returned invalid JSON: {e}") from e
 
+    def _get_arc_defaults(self, position_index: int, total_scenes: int) -> dict:
+        """
+        Return NARRATIVE_ARC_DEFAULTS for a given scene position.
+
+        Maps scene index to narrative arc role based on total scene count.
+        This is used as a fallback when Claude omits Emotion Spine fields.
+        """
+        if total_scenes <= 1:
+            return NARRATIVE_ARC_DEFAULTS["hook"]
+
+        n = total_scenes - 1  # last index
+
+        if position_index == 0:
+            return NARRATIVE_ARC_DEFAULTS["hook"]
+        elif position_index == 1:
+            return NARRATIVE_ARC_DEFAULTS["curious"]
+        elif position_index == n - 1:
+            return NARRATIVE_ARC_DEFAULTS["warm"]
+        elif position_index == n:
+            return NARRATIVE_ARC_DEFAULTS["cta"]
+        elif position_index == n - 2:
+            return NARRATIVE_ARC_DEFAULTS["surprising"]
+        else:
+            # Alternate calm / building for middle scenes
+            mid_index = position_index - 2  # zero-based within middle scenes
+            if mid_index % 2 == 0:
+                return NARRATIVE_ARC_DEFAULTS["calm"]
+            else:
+                return NARRATIVE_ARC_DEFAULTS["building"]
+
     def _parse_scenes(self, raw_scenes: list[dict]) -> list[Scene]:
-        """Convert raw scene dicts to Scene objects with validation."""
+        """Convert raw scene dicts to Scene objects with Emotion Spine validation."""
         scenes = []
+        total = len(raw_scenes)
+
+        valid_emotions = {"hook", "curious", "surprising", "calm", "building", "warm", "cta", "neutral"}
+        valid_ken_burns = {"slow_zoom", "fast_zoom", "pan_left", "pan_right", "static"}
+        valid_compositions = {"wide", "closeup", "abstract", "infographic", "split_screen"}
+
         for i, s in enumerate(raw_scenes):
             try:
+                # Get positional arc defaults for fallback
+                arc_defaults = self._get_arc_defaults(i, total)
+
+                # Parse emotion — validate and fall back to arc default
+                emotion = s.get("emotion", "")
+                if emotion not in valid_emotions:
+                    emotion = arc_defaults["emotion"]
+                    if i < total:  # only log if we actually have data to fall back from
+                        logger.debug(f"Scene {i}: emotion missing/invalid, using arc default '{emotion}'")
+
+                # Parse tts_ssml_hint — free string, just default to empty
+                tts_ssml_hint = str(s.get("tts_ssml_hint", "")).strip()
+
+                # Parse ken_burns — validate and fall back
+                ken_burns = s.get("ken_burns", "")
+                if ken_burns not in valid_ken_burns:
+                    ken_burns = arc_defaults["ken_burns"]
+                    logger.debug(f"Scene {i}: ken_burns missing/invalid, using arc default '{ken_burns}'")
+
+                # Parse bgm_intensity — clamp to 0.0–1.0
+                try:
+                    bgm_intensity = float(s.get("bgm_intensity", arc_defaults["bgm_intensity"]))
+                    bgm_intensity = max(0.0, min(1.0, bgm_intensity))
+                except (TypeError, ValueError):
+                    bgm_intensity = arc_defaults["bgm_intensity"]
+
+                # Parse image_composition — validate and fall back
+                image_composition = s.get("image_composition", "")
+                if image_composition not in valid_compositions:
+                    image_composition = arc_defaults["image_composition"]
+                    logger.debug(f"Scene {i}: image_composition missing/invalid, using arc default '{image_composition}'")
+
                 scene = Scene(
                     index=s.get("index", i),
                     narration=s.get("narration", ""),
                     image_prompt=s.get("image_prompt", ""),
                     duration_estimate=float(s.get("duration_estimate", 45.0)),
+                    emotion=emotion,
+                    tts_ssml_hint=tts_ssml_hint,
+                    ken_burns=ken_burns,
+                    bgm_intensity=bgm_intensity,
+                    image_composition=image_composition,
                 )
+
                 if not scene.narration:
                     logger.warning(f"Scene {i} has empty narration, skipping")
                     continue
                 if not scene.image_prompt:
                     logger.warning(f"Scene {i} has empty image_prompt, using fallback")
                     scene.image_prompt = "Abstract colorful Korean webtoon illustration, knowledge and curiosity theme"
+
                 scenes.append(scene)
+
             except (KeyError, TypeError, ValueError) as e:
                 logger.warning(f"Skipping malformed scene {i}: {e}")
 
         if not scenes:
             raise ValueError("No valid scenes could be parsed from Claude's response")
 
+        logger.info(
+            f"Parsed {len(scenes)} scenes with Emotion Spine. "
+            f"Emotions: {[s.emotion for s in scenes]}"
+        )
         return scenes
 
 
@@ -311,6 +488,8 @@ if __name__ == "__main__":
         print(f"\n제목: {result.title}")
         print(f"씬 수: {len(result.scenes)}")
         for scene in result.scenes:
-            print(f"\n[씬 {scene.index}] ({scene.duration_estimate}s)")
+            print(f"\n[씬 {scene.index}] ({scene.duration_estimate}s) emotion={scene.emotion} "
+                  f"bgm={scene.bgm_intensity} ken_burns={scene.ken_burns}")
             print(f"  나레이션: {scene.narration[:80]}...")
             print(f"  이미지: {scene.image_prompt[:80]}...")
+            print(f"  TTS hint: {scene.tts_ssml_hint} | 구도: {scene.image_composition}")
