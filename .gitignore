@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+data/runs/
+data/youtube_token.json
+logs/
+/tmp/
+*.mp4
+*.mp3
+*.jpg
+*.jpeg
+*.png
+!assets/README.md
