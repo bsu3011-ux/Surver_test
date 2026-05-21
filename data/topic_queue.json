@@ -1,0 +1,205 @@
+{
+  "last_updated": "2024-01-01T00:00:00Z",
+  "topics": [
+    {
+      "id": "topic_001",
+      "title_idea": "왜 우리는 새벽에 더 창의적이 될까? - 미라클 모닝의 심리학",
+      "category": "psychology",
+      "keywords": ["창의성", "수면", "뇌과학", "미라클모닝", "집중력"],
+      "hook": "밤새 공부하면 갑자기 아이디어가 팍팍 떠오르는 경험, 혹시 있으신가요?",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 1
+    },
+    {
+      "id": "topic_002",
+      "title_idea": "확증 편향의 함정 - 우리 뇌가 보고 싶은 것만 보는 이유",
+      "category": "psychology",
+      "keywords": ["확증편향", "인지편향", "심리학", "뇌과학", "의사결정"],
+      "hook": "내 생각이 항상 맞다고 느끼신 적 있나요? 사실 우리 뇌는 당신을 속이고 있어요.",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 2
+    },
+    {
+      "id": "topic_003",
+      "title_idea": "도파민 디톡스가 진짜 효과 있을까? - SNS 중독의 과학",
+      "category": "psychology",
+      "keywords": ["도파민", "SNS중독", "디지털디톡스", "뇌과학", "습관"],
+      "hook": "스마트폰 없이 하루를 보내면 어떤 일이 일어날까요?",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 3
+    },
+    {
+      "id": "topic_004",
+      "title_idea": "사람들이 비싼 것을 더 맛있게 느끼는 이유 - 플라시보 효과의 진실",
+      "category": "psychology",
+      "keywords": ["플라시보", "가격심리", "인지편향", "마케팅심리", "행동경제학"],
+      "hook": "같은 와인인데 비싸다고 하면 더 맛있다고요? 놀라운 실험 결과를 공개합니다.",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 4
+    },
+    {
+      "id": "topic_005",
+      "title_idea": "방관자 효과 - 사람이 많을수록 왜 아무도 안 도울까?",
+      "category": "psychology",
+      "keywords": ["방관자효과", "사회심리학", "키티제노비스", "집단행동", "도덕심리"],
+      "hook": "길에서 쓰러진 사람을 아무도 안 도와주는 이유가 뭔지 아세요?",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 5
+    },
+    {
+      "id": "topic_006",
+      "title_idea": "커피를 마셔도 잠이 오는 사람 vs 안 오는 사람 - 카페인 내성의 과학",
+      "category": "life",
+      "keywords": ["카페인", "커피", "수면", "유전자", "내성"],
+      "hook": "친구는 커피 한 잔에 밤새 못 자는데, 나는 아무리 마셔도 잠이 오는 이유가 뭔지 아세요?",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 6
+    },
+    {
+      "id": "topic_007",
+      "title_idea": "냉장고에 절대 보관하면 안 되는 음식들 - 의외의 사실들",
+      "category": "life",
+      "keywords": ["냉장보관", "식품보관", "요리상식", "생활tip", "음식과학"],
+      "hook": "냉장고에 넣으면 오히려 더 빨리 상하는 음식이 있다는 거 알고 계셨나요?",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 7
+    },
+    {
+      "id": "topic_008",
+      "title_idea": "비행기 탈 때 창가 자리가 건강에 더 좋은 이유 - 여행 잡학지식",
+      "category": "life",
+      "keywords": ["비행기", "여행", "방사선", "건강", "여행팁"],
+      "hook": "비행기에서 창가 자리가 단순히 뷰만 좋은 게 아니라고요?",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 8
+    },
+    {
+      "id": "topic_009",
+      "title_idea": "면접에서 절대 하면 안 되는 말과 행동 TOP 7 - 행동경제학으로 보는 첫인상",
+      "category": "life",
+      "keywords": ["면접", "첫인상", "행동경제학", "취업", "심리학"],
+      "hook": "면접관은 처음 30초 안에 이미 결정을 내린다고 합니다. 어떻게 해야 할까요?",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 9
+    },
+    {
+      "id": "topic_010",
+      "title_idea": "하루에 물 8잔 마셔야 한다는 게 사실일까? - 건강 상식의 배신",
+      "category": "life",
+      "keywords": ["수분섭취", "건강상식", "의학", "하루물섭취", "과학"],
+      "hook": "모든 사람에게 하루 물 8잔이 정답이라는 게 사실은 그냥 마케팅이었다고요?",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 10
+    },
+    {
+      "id": "topic_011",
+      "title_idea": "재채기를 억지로 참으면 어떤 일이 일어날까? - 몸의 신기한 메커니즘",
+      "category": "life",
+      "keywords": ["재채기", "인체", "신체메커니즘", "건강", "생물학"],
+      "hook": "재채기를 참다가 응급실에 실려간 사람 이야기, 들어보셨나요?",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 11
+    },
+    {
+      "id": "topic_012",
+      "title_idea": "ChatGPT가 모르는 것들 - AI가 아직도 못 하는 의외의 일들",
+      "category": "tech",
+      "keywords": ["ChatGPT", "AI한계", "인공지능", "LLM", "AI비교"],
+      "hook": "ChatGPT에게 이걸 물어보면 틀린 답을 자신있게 말한다는 거 알고 계셨나요?",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 12
+    },
+    {
+      "id": "topic_013",
+      "title_idea": "비밀번호 없는 세상이 온다 - 패스키(Passkey) 완전 해설",
+      "category": "tech",
+      "keywords": ["패스키", "보안", "비밀번호", "FIDO", "인증"],
+      "hook": "애플, 구글, 삼성이 모두 비밀번호를 없애려 하고 있어요. 그 이유가 뭘까요?",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 13
+    },
+    {
+      "id": "topic_014",
+      "title_idea": "유튜브 알고리즘의 실제 작동 원리 - 조회수가 결정되는 방법",
+      "category": "tech",
+      "keywords": ["유튜브알고리즘", "추천시스템", "머신러닝", "CTR", "조회수"],
+      "hook": "유튜브 알고리즘은 사실 조회수가 아닌 '이것'을 가장 중요하게 본다고요?",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 14
+    },
+    {
+      "id": "topic_015",
+      "title_idea": "양자컴퓨터가 진짜로 가능한 일 vs 불가능한 일 - 과대광고의 진실",
+      "category": "tech",
+      "keywords": ["양자컴퓨터", "양자역학", "암호화", "미래기술", "과학"],
+      "hook": "양자컴퓨터가 나오면 세상의 모든 암호가 뚫린다? 사실일까요?",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 15
+    },
+    {
+      "id": "topic_016",
+      "title_idea": "스마트폰이 우리 뇌를 바꾸고 있다 - 디지털 뇌의 과학",
+      "category": "psychology",
+      "keywords": ["스마트폰", "뇌변화", "주의집중", "디지털뇌", "신경가소성"],
+      "hook": "스마트폰을 10년 쓴 뇌와 안 쓴 뇌는 구조가 다르다는 연구가 있어요.",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 16
+    },
+    {
+      "id": "topic_017",
+      "title_idea": "왜 좋아하는 노래가 어느 순간 싫어질까? - 음악과 감정의 심리학",
+      "category": "psychology",
+      "keywords": ["음악심리학", "감정", "반복효과", "도파민", "권태"],
+      "hook": "좋아서 100번 들었더니 이제 듣기 싫은 노래가 된 경험 있으신가요?",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 17
+    },
+    {
+      "id": "topic_018",
+      "title_idea": "전기차 배터리의 불편한 진실 - 겨울에 주행거리가 급감하는 이유",
+      "category": "tech",
+      "keywords": ["전기차", "배터리", "리튬이온", "주행거리", "온도"],
+      "hook": "전기차 카탈로그 주행거리와 실제 주행거리가 왜 이렇게 다른 건지 아세요?",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 18
+    },
+    {
+      "id": "topic_019",
+      "title_idea": "물건을 잃어버렸을 때 꼭 나중에 찾게 되는 이유 - 기억의 역설",
+      "category": "psychology",
+      "keywords": ["기억", "인지심리학", "망각", "회상", "뇌과학"],
+      "hook": "찾다찾다 포기하면 갑자기 나타나는 물건들... 이게 과학적으로 설명이 된다고요?",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 19
+    },
+    {
+      "id": "topic_020",
+      "title_idea": "편의점 음식이 더 비싼 이유 - 유통의 경제학과 숨겨진 가격 구조",
+      "category": "life",
+      "keywords": ["편의점", "유통마진", "가격구조", "경제학", "소비"],
+      "hook": "편의점이 마트보다 비싼 건 누구나 알지만, 그 마진이 얼마나 되는지 아세요?",
+      "used": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "priority": 20
+    }
+  ]
+}

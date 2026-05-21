@@ -1,0 +1,157 @@
+channel:
+  name: "어쩌다지식"
+  name_en: "Eojjeoda Jisik"
+  description: "일상 속 숨겨진 지식을 재미있게 풀어드립니다"
+  target_audience: "20-30대 한국인"
+  language: "ko-KR"
+  timezone: "Asia/Seoul"
+
+topics:
+  categories:
+    - name: "psychology"
+      name_ko: "심리학"
+      weight: 35  # percentage of videos
+      description: "심리학 관련 흥미로운 지식과 실험들"
+    - name: "life"
+      name_ko: "생활잡학"
+      weight: 40
+      description: "일상생활에서 유용한 잡학다식"
+    - name: "tech"
+      name_ko: "IT/테크"
+      weight: 25
+      description: "최신 IT 트렌드와 기술 이야기"
+
+voice:
+  provider: "google-cloud-tts"
+  language_code: "ko-KR"
+  name: "ko-KR-Neural2-C"
+  speaking_rate: 1.05
+  pitch: 0.0
+  volume_gain_db: 0.0
+  audio_encoding: "MP3"
+  sample_rate_hertz: 24000
+
+image:
+  provider: "vertex-ai-imagen"
+  model: "imagen-3.0-generate-001"
+  aspect_ratio: "16:9"
+  number_of_images: 1
+  output_format: "jpeg"
+  quality: 95
+
+  style_prefixes:
+    default: "Digital illustration, clean modern Korean webtoon style, vibrant colors, 16:9 aspect ratio, no text,"
+    psychology: "Digital illustration, soft pastel tones, Korean webtoon style, warm and inviting, psychological concept visualization, 16:9 aspect ratio, no text,"
+    life: "Digital illustration, bright cheerful colors, everyday Korean life scene, webtoon style, clean modern look, 16:9 aspect ratio, no text,"
+    tech: "Digital illustration, futuristic tech aesthetic, neon accents, Korean webtoon style, sleek modern design, 16:9 aspect ratio, no text,"
+
+bgm:
+  volume: 0.15  # 15% volume under narration
+  fade_in_seconds: 2.0
+  fade_out_seconds: 3.0
+  mood_map:
+    psychology: "calm"
+    life: "upbeat"
+    tech: "electronic"
+  moods:
+    calm:
+      description: "차분하고 몽환적인 배경음악"
+      bpm_range: [60, 90]
+    upbeat:
+      description: "경쾌하고 활기찬 배경음악"
+      bpm_range: [100, 130]
+    electronic:
+      description: "일렉트로닉/테크 느낌의 배경음악"
+      bpm_range: [110, 140]
+
+video:
+  resolution:
+    width: 1920
+    height: 1080
+  fps: 30
+  codec: "libx264"
+  audio_codec: "aac"
+  audio_bitrate: "192k"
+  video_bitrate: "8000k"
+  preset: "medium"
+  crf: 23
+  format: "mp4"
+
+  intro:
+    file: "assets/intro.mp4"
+    enabled: true
+
+  subtitles:
+    enabled: true
+    font: "NanumGothic"
+    font_size: 52
+    font_color: "white"
+    stroke_color: "black"
+    stroke_width: 2.5
+    position: "bottom-center"
+    margin_bottom: 80
+    background: true
+    background_opacity: 0.4
+
+script:
+  min_scenes: 8
+  max_scenes: 12
+  target_duration_minutes: 7
+  intro_hook_required: true
+  outro_cta_required: true
+  cta_message: "구독과 좋아요는 더 좋은 영상을 만드는 힘이 됩니다!"
+
+youtube:
+  category_id: 27  # Education
+  default_privacy: "public"
+  upload_schedule: "public"
+  tags_limit: 500  # chars
+  description_template: |
+    {description}
+
+    ━━━━━━━━━━━━━━━━━━━━━━━
+    📚 어쩌다지식 채널
+    일상 속 숨겨진 흥미로운 지식들을 쉽고 재미있게 풀어드립니다!
+
+    👍 좋아요와 구독은 큰 힘이 됩니다
+    🔔 알림설정하면 새 영상을 놓치지 않아요
+    ━━━━━━━━━━━━━━━━━━━━━━━
+
+    #어쩌다지식 #{category_ko} #지식 #잡학다식
+
+schedule:
+  frequency: "3x_per_week"
+  days: ["monday", "wednesday", "friday"]
+  upload_time_kst: "10:00"
+  upload_time_utc: "01:00"
+
+google_drive:
+  review_folder_name: "어쩌다지식_검토대기"
+  archive_folder_name: "어쩌다지식_완료"
+
+telegram:
+  notification_template: |
+    🎬 새 영상 검토 요청
+
+    📌 제목: {title}
+    📂 카테고리: {category}
+    ⏱ 예상 길이: {duration}분
+
+    📝 설명:
+    {description_short}
+
+    🔗 드라이브 링크: {drive_url}
+
+    승인 또는 반려를 선택해주세요:
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+  file: "logs/pipeline.log"
+  max_bytes: 10485760  # 10MB
+  backup_count: 5
+
+data:
+  topic_queue_file: "data/topic_queue.json"
+  runs_dir: "data/runs"
+  pending_approvals_file: "data/pending_approvals.json"
