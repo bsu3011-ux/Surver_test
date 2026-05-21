@@ -3,9 +3,16 @@ Video Assembler for 어쩌다지식 YouTube Pipeline.
 
 Uses moviepy + ffmpeg to assemble:
   - Intro clip (intro.mp4)
-  - Per-scene: image + narration audio
-  - BGM at 15% volume
-  - SRT subtitles overlay (clean white text, bottom center)
+  - Per-scene: animated Ken Burns image clip + narration audio
+  - BGM with per-scene volume automation (driven by Emotion Spine bgm_intensity)
+  - 0.3s crossfade transitions between scene clips
+  - SRT subtitles burned in via ffmpeg
+
+Ken Burns effects are applied per-scene using the scene.ken_burns field from
+the Emotion Spine metadata, generating smooth camera movements via FFmpeg zoompan.
+
+BGM volume is modulated per scene based on scene.bgm_intensity (0.0–1.0),
+building an FFmpeg volume keyframe expression that matches the narrative arc.
 
 Output: 1920x1080, H.264, 30fps MP4
 """
@@ -17,6 +24,7 @@ import math
 import os
 import random
 import re
+import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -25,11 +33,14 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
 # Video specs
+# ---------------------------------------------------------------------------
 VIDEO_WIDTH = 1920
 VIDEO_HEIGHT = 1080
 VIDEO_FPS = 30
-BGM_VOLUME = 0.15  # 15% of original BGM volume
+BGM_VOLUME = 0.15          # Default flat BGM volume (used when no scenes provided)
+CROSSFADE_DURATION = 0.3   # Seconds of crossfade between scene clips
 
 # Subtitle styling
 SUBTITLE_FONT_SIZE = 52
@@ -43,6 +54,46 @@ BGM_MOOD_MAP = {
     "psychology": "calm",
     "life": "upbeat",
     "tech": "electronic",
+}
+
+# ---------------------------------------------------------------------------
+# Ken Burns FFmpeg zoompan filter templates
+#
+# Placeholders:
+#   {frames} — total frames for the clip (duration * VIDEO_FPS)
+#   {w}      — output width  (VIDEO_WIDTH)
+#   {h}      — output height (VIDEO_HEIGHT)
+#
+# 'on' is the FFmpeg zoompan output frame counter variable (1-based).
+# ---------------------------------------------------------------------------
+KEN_BURNS_FILTERS: dict[str, str] = {
+    # Slow centre zoom-in from 1.0 to 1.15x
+    "slow_zoom": (
+        "zoompan=z='min(zoom+0.0008,1.15)':d={frames}"
+        ":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={w}x{h}"
+    ),
+    # Fast centre zoom-in from 1.0 to 1.20x — for hook / surprising scenes
+    "fast_zoom": (
+        "zoompan=z='min(zoom+0.002,1.20)':d={frames}"
+        ":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={w}x{h}"
+    ),
+    # Pan left (start right-of-centre, move to left) — warm farewell, reflection
+    "pan_left": (
+        "zoompan=z=1.08:d={frames}"
+        ":x='(iw-iw/zoom)/2-((iw-iw/zoom)/2)*on/{frames}'"
+        ":y='ih/2-(ih/zoom/2)':s={w}x{h}"
+    ),
+    # Pan right (start left-of-centre, move to right) — exploration, curiosity
+    "pan_right": (
+        "zoompan=z=1.08:d={frames}"
+        ":x='iw/zoom/2+((iw-iw/zoom)/2)*on/{frames}'"
+        ":y='ih/2-(ih/zoom/2)':s={w}x{h}"
+    ),
+    # No movement — CTA, stable information scenes
+    "static": (
+        "zoompan=z=1.0:d={frames}"
+        ":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={w}x{h}"
+    ),
 }
 
 
@@ -65,9 +116,13 @@ class VideoAssembler:
         self.bgm_dir = self.assets_dir / "bgm"
         logger.info(f"VideoAssembler initialized. Assets dir: {self.assets_dir}")
 
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
     def assemble(
         self,
-        script_result,  # ScriptResult from script_generator
+        script_result,       # ScriptResult from script_generator
         audio_files: list[Path],
         image_files: list[Path],
         output_path: str | Path,
@@ -77,7 +132,7 @@ class VideoAssembler:
         Assemble all components into a final MP4 video.
 
         Args:
-            script_result: ScriptResult with scenes and metadata.
+            script_result: ScriptResult with scenes (including Emotion Spine metadata).
             audio_files: MP3 audio files, one per scene (same order as script_result.scenes).
             image_files: JPEG image files, one per scene.
             output_path: Where to save the final MP4.
@@ -88,11 +143,8 @@ class VideoAssembler:
         """
         from moviepy.editor import (
             AudioFileClip,
-            ImageClip,
             VideoFileClip,
             concatenate_videoclips,
-            CompositeAudioClip,
-            AudioClip,
         )
 
         output_path = Path(output_path)
@@ -115,131 +167,190 @@ class VideoAssembler:
         logger.info(f"Assembling video: {n_scenes} scenes, category={category}")
 
         # ------------------------------------------------------------------
-        # 1. Build scene clips (image + narration audio)
+        # 1. Build scene clips with Ken Burns + audio
         # ------------------------------------------------------------------
         scene_clips = []
         srt_entries = []
         cumulative_time = 0.0
+        scene_durations: list[float] = []
 
-        for i in range(n_scenes):
-            audio_path = Path(audio_files[i])
-            image_path = Path(image_files[i])
+        with tempfile.TemporaryDirectory(prefix="ej_kb_") as tmp_dir:
+            tmp_path = Path(tmp_dir)
 
-            if not audio_path.exists():
-                logger.error(f"Audio file missing: {audio_path}")
-                continue
-            if not image_path.exists():
-                logger.error(f"Image file missing: {image_path}")
-                continue
+            for i in range(n_scenes):
+                audio_path = Path(audio_files[i])
+                image_path = Path(image_files[i])
 
-            # Load audio to get exact duration
-            audio_clip = AudioFileClip(str(audio_path))
-            duration = audio_clip.duration
+                if not audio_path.exists():
+                    logger.error(f"Audio file missing: {audio_path}")
+                    continue
+                if not image_path.exists():
+                    logger.error(f"Image file missing: {image_path}")
+                    continue
 
-            # Create image clip matching audio duration
-            img_clip = (
-                ImageClip(str(image_path))
-                .set_duration(duration)
-                .set_audio(audio_clip)
-                .set_fps(VIDEO_FPS)
+                # Load audio to get exact duration
+                audio_clip = AudioFileClip(str(audio_path))
+                duration = audio_clip.duration
+                audio_clip.close()
+
+                scene = scenes[i]
+                ken_burns = getattr(scene, "ken_burns", "slow_zoom")
+
+                # Apply Ken Burns animation via FFmpeg
+                kb_clip_path = tmp_path / f"kb_{i:03d}.mp4"
+                try:
+                    self._apply_ken_burns(
+                        image_path=image_path,
+                        output_path=kb_clip_path,
+                        ken_burns=ken_burns,
+                        duration=duration,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Ken Burns failed for scene {i} (using static fallback): "
+                        f"{type(e).__name__}: {e}"
+                    )
+                    # Fallback: static clip via FFmpeg (no zoompan)
+                    kb_clip_path = tmp_path / f"kb_{i:03d}_static.mp4"
+                    self._apply_ken_burns(
+                        image_path=image_path,
+                        output_path=kb_clip_path,
+                        ken_burns="static",
+                        duration=duration,
+                    )
+
+                # Load the animated clip and attach audio
+                video_clip = VideoFileClip(str(kb_clip_path))
+                audio_clip = AudioFileClip(str(audio_path))
+
+                # Ensure clip duration matches audio (zoompan can be slightly off)
+                if abs(video_clip.duration - duration) > 0.1:
+                    video_clip = video_clip.set_duration(duration)
+
+                video_clip = video_clip.set_audio(audio_clip)
+
+                scene_clips.append(video_clip)
+                scene_durations.append(duration)
+
+                # SRT subtitle entry
+                narration = scene.narration.strip()
+                srt_entries.append({
+                    "start": cumulative_time,
+                    "end": cumulative_time + duration,
+                    "text": narration,
+                })
+                cumulative_time += duration
+
+            if not scene_clips:
+                raise RuntimeError("No valid scene clips could be assembled")
+
+            # ------------------------------------------------------------------
+            # 2. Apply crossfade transitions between scene clips
+            # ------------------------------------------------------------------
+            if len(scene_clips) > 1:
+                clips_with_transitions = [scene_clips[0]]
+                for clip in scene_clips[1:]:
+                    clip = clip.crossfadein(CROSSFADE_DURATION)
+                    clips_with_transitions.append(clip)
+                main_video = concatenate_videoclips(
+                    clips_with_transitions,
+                    padding=-CROSSFADE_DURATION,
+                    method="compose",
+                )
+                logger.info(
+                    f"Applied {CROSSFADE_DURATION}s crossfades between {len(scene_clips)} clips"
+                )
+            else:
+                main_video = concatenate_videoclips(scene_clips, method="compose")
+
+            logger.info(f"Main content duration: {main_video.duration:.1f}s")
+
+            # ------------------------------------------------------------------
+            # 3. Prepend intro clip
+            # ------------------------------------------------------------------
+            intro_included = False
+            intro_duration = 0.0
+            if include_intro and self.intro_path.exists():
+                try:
+                    intro_clip = VideoFileClip(str(self.intro_path))
+                    intro_clip = self._fit_to_resolution(intro_clip, VIDEO_WIDTH, VIDEO_HEIGHT)
+                    intro_clip = intro_clip.set_fps(VIDEO_FPS)
+                    intro_duration = intro_clip.duration
+
+                    # Shift subtitle timings by intro duration
+                    for entry in srt_entries:
+                        entry["start"] += intro_duration
+                        entry["end"] += intro_duration
+
+                    main_video = concatenate_videoclips(
+                        [intro_clip, main_video], method="compose"
+                    )
+                    intro_included = True
+                    logger.info(f"Intro prepended: {intro_duration:.1f}s")
+                except Exception as e:
+                    logger.warning(f"Could not load intro.mp4: {e}. Skipping intro.")
+            else:
+                if include_intro:
+                    logger.info("Intro file not found, skipping.")
+
+            # ------------------------------------------------------------------
+            # 4. Select and mix BGM with narrative arc volume automation
+            # ------------------------------------------------------------------
+            bgm_path = self._select_bgm(category)
+            bgm_used = None
+            if bgm_path:
+                try:
+                    main_video = self._add_bgm_with_automation(
+                        video=main_video,
+                        bgm_path=bgm_path,
+                        scenes=scenes,
+                        intro_duration=intro_duration,
+                        scene_durations=scene_durations,
+                    )
+                    bgm_used = str(bgm_path)
+                    logger.info(f"BGM added with volume automation: {bgm_path.name}")
+                except Exception as e:
+                    logger.warning(f"Failed to add BGM: {e}. Continuing without BGM.")
+            else:
+                logger.info("No BGM files found, skipping BGM.")
+
+            # ------------------------------------------------------------------
+            # 5. Generate SRT subtitle file
+            # ------------------------------------------------------------------
+            srt_path = output_path.with_suffix(".srt")
+            self._write_srt(srt_entries, srt_path)
+            logger.info(f"SRT file written: {srt_path.name}")
+
+            # ------------------------------------------------------------------
+            # 6. Write raw video (without subtitle overlay)
+            # ------------------------------------------------------------------
+            temp_video_path = output_path.with_stem(output_path.stem + "_raw")
+            logger.info(f"Writing raw video to {temp_video_path.name}...")
+
+            main_video.write_videofile(
+                str(temp_video_path),
+                fps=VIDEO_FPS,
+                codec="libx264",
+                audio_codec="aac",
+                audio_bitrate="192k",
+                bitrate="8000k",
+                preset="medium",
+                threads=os.cpu_count() or 4,
+                logger=None,
             )
-
-            # Resize to 1920x1080 (maintain aspect, crop/letterbox)
-            img_clip = self._fit_to_resolution(img_clip, VIDEO_WIDTH, VIDEO_HEIGHT)
-            scene_clips.append(img_clip)
-
-            # Collect subtitle entry
-            narration = scenes[i].narration.strip()
-            srt_entries.append({
-                "start": cumulative_time,
-                "end": cumulative_time + duration,
-                "text": narration,
-            })
-            cumulative_time += duration
-
-        if not scene_clips:
-            raise RuntimeError("No valid scene clips could be assembled")
+            main_video.close()
+            for clip in scene_clips:
+                try:
+                    clip.close()
+                except Exception:
+                    pass
 
         # ------------------------------------------------------------------
-        # 2. Concatenate scene clips
-        # ------------------------------------------------------------------
-        main_video = concatenate_videoclips(scene_clips, method="compose")
-        logger.info(f"Main content duration: {main_video.duration:.1f}s")
-
-        # ------------------------------------------------------------------
-        # 3. Prepend intro clip
-        # ------------------------------------------------------------------
-        intro_included = False
-        intro_duration = 0.0
-        if include_intro and self.intro_path.exists():
-            try:
-                intro_clip = VideoFileClip(str(self.intro_path))
-                intro_clip = self._fit_to_resolution(intro_clip, VIDEO_WIDTH, VIDEO_HEIGHT)
-                intro_clip = intro_clip.set_fps(VIDEO_FPS)
-                intro_duration = intro_clip.duration
-
-                # Shift subtitle timings by intro duration
-                for entry in srt_entries:
-                    entry["start"] += intro_duration
-                    entry["end"] += intro_duration
-
-                main_video = concatenate_videoclips([intro_clip, main_video], method="compose")
-                intro_included = True
-                logger.info(f"Intro prepended: {intro_duration:.1f}s")
-            except Exception as e:
-                logger.warning(f"Could not load intro.mp4: {e}. Skipping intro.")
-        else:
-            if include_intro:
-                logger.info("Intro file not found, skipping.")
-
-        # ------------------------------------------------------------------
-        # 4. Select and mix BGM
-        # ------------------------------------------------------------------
-        bgm_path = self._select_bgm(category)
-        bgm_used = None
-        if bgm_path:
-            try:
-                main_video = self._add_bgm(main_video, bgm_path)
-                bgm_used = str(bgm_path)
-                logger.info(f"BGM added: {bgm_path.name}")
-            except Exception as e:
-                logger.warning(f"Failed to add BGM: {e}. Continuing without BGM.")
-        else:
-            logger.info("No BGM files found, skipping BGM.")
-
-        # ------------------------------------------------------------------
-        # 5. Generate SRT subtitle file
-        # ------------------------------------------------------------------
-        srt_path = output_path.with_suffix(".srt")
-        self._write_srt(srt_entries, srt_path)
-        logger.info(f"SRT file written: {srt_path.name}")
-
-        # ------------------------------------------------------------------
-        # 6. Write final video (without subtitle overlay — use ffmpeg burn-in)
-        # ------------------------------------------------------------------
-        temp_video_path = output_path.with_stem(output_path.stem + "_raw")
-        logger.info(f"Writing raw video to {temp_video_path.name}...")
-
-        main_video.write_videofile(
-            str(temp_video_path),
-            fps=VIDEO_FPS,
-            codec="libx264",
-            audio_codec="aac",
-            audio_bitrate="192k",
-            bitrate="8000k",
-            preset="medium",
-            threads=os.cpu_count() or 4,
-            logger=None,  # Suppress moviepy progress bars
-        )
-        main_video.close()
-
-        # ------------------------------------------------------------------
-        # 7. Burn subtitles via ffmpeg (cleaner than moviepy text overlay)
+        # 7. Burn subtitles via ffmpeg
         # ------------------------------------------------------------------
         logger.info("Burning subtitles into video...")
         self._burn_subtitles(temp_video_path, srt_path, output_path)
 
-        # Clean up raw video
         if temp_video_path.exists():
             temp_video_path.unlink()
 
@@ -257,6 +368,201 @@ class VideoAssembler:
             bgm_used=bgm_used,
         )
 
+    # ------------------------------------------------------------------
+    # Ken Burns effect
+    # ------------------------------------------------------------------
+
+    def _apply_ken_burns(
+        self,
+        image_path: Path,
+        output_path: Path,
+        ken_burns: str,
+        duration: float,
+    ) -> Path:
+        """
+        Convert a static image to an animated clip with a Ken Burns camera effect.
+
+        Uses FFmpeg's zoompan filter. The output is a 1920x1080, 30fps H.264 MP4
+        with no audio track (audio is added separately via moviepy).
+
+        Args:
+            image_path: Source JPEG/PNG image.
+            output_path: Destination MP4 clip path.
+            ken_burns: Effect type key from KEN_BURNS_FILTERS
+                       (slow_zoom/fast_zoom/pan_left/pan_right/static).
+            duration: Clip duration in seconds.
+
+        Returns:
+            Path to the generated animated clip.
+
+        Raises:
+            subprocess.CalledProcessError: If FFmpeg fails.
+        """
+        frames = int(duration * VIDEO_FPS)
+        # Guard against zero-frame clips (very short audio)
+        frames = max(frames, VIDEO_FPS)
+
+        filter_template = KEN_BURNS_FILTERS.get(ken_burns, KEN_BURNS_FILTERS["slow_zoom"])
+        vf_filter = filter_template.format(frames=frames, w=VIDEO_WIDTH, h=VIDEO_HEIGHT)
+
+        cmd = [
+            "ffmpeg", "-y",
+            "-loop", "1",
+            "-i", str(image_path),
+            "-vf", vf_filter,
+            "-t", str(duration),
+            "-r", str(VIDEO_FPS),
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-pix_fmt", "yuv420p",
+            "-an",          # No audio track in this clip
+            str(output_path),
+        ]
+
+        logger.debug(
+            f"Ken Burns [{ken_burns}] — {image_path.name} → {output_path.name} "
+            f"({duration:.1f}s, {frames} frames)"
+        )
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"FFmpeg Ken Burns failed (exit {result.returncode}): "
+                f"{result.stderr[-300:]}"
+            )
+        return output_path
+
+    # ------------------------------------------------------------------
+    # BGM with narrative arc volume automation
+    # ------------------------------------------------------------------
+
+    def _build_bgm_volume_filter(
+        self,
+        scenes: list,
+        intro_duration: float,
+        scene_durations: list[float],
+    ) -> str:
+        """
+        Build an FFmpeg volume filter expression with per-scene BGM intensity keyframes.
+
+        The expression uses nested if(lt(t, ...)) calls so FFmpeg evaluates the
+        correct volume for each point in time.  Volume is interpolated as a step
+        function — each scene boundary triggers a volume change.
+
+        Args:
+            scenes: Scene objects with .bgm_intensity (0.0–1.0).
+            intro_duration: Duration of the prepended intro clip in seconds.
+            scene_durations: Actual duration of each scene clip in seconds
+                             (same order as scenes).
+
+        Returns:
+            FFmpeg volume filter string, e.g.
+            "volume='if(lt(t,5),0.5,if(lt(t,10),0.2,...,0.15))':eval=frame"
+        """
+        # Build (boundary_time, volume) pairs
+        keyframes: list[tuple[float, float]] = []
+        current_t = intro_duration  # scenes start after intro
+
+        for i, scene in enumerate(scenes):
+            intensity = getattr(scene, "bgm_intensity", BGM_VOLUME)
+            # Clamp to [0.05, 1.0] — never completely silence or over-amplify BGM
+            vol = max(0.05, min(1.0, float(intensity)))
+            # Scale: bgm_intensity is already the desired fraction of the BGM track
+            keyframes.append((current_t, vol))
+            if i < len(scene_durations):
+                current_t += scene_durations[i]
+
+        if not keyframes:
+            return f"volume={BGM_VOLUME}:eval=frame"
+
+        # Build nested if() expression from last to first
+        # Base case: use the last scene's volume after all keyframes
+        default_vol = keyframes[-1][1]
+        expr = str(round(default_vol, 4))
+
+        # Wrap from inner-most to outer-most
+        for boundary_t, vol in reversed(keyframes):
+            expr = f"if(lt(t,{boundary_t:.3f}),{vol:.4f},{expr})"
+
+        return f"volume='{expr}':eval=frame"
+
+    def _add_bgm_with_automation(
+        self,
+        video,
+        bgm_path: Path,
+        scenes: list,
+        intro_duration: float,
+        scene_durations: list[float],
+    ):
+        """
+        Add background music with per-scene volume automation driven by Emotion Spine.
+
+        Falls back to flat BGM_VOLUME if volume filter construction fails.
+
+        Args:
+            video: moviepy VideoClip with narration audio already set.
+            bgm_path: Path to the BGM audio file.
+            scenes: Scene objects with .bgm_intensity fields.
+            intro_duration: Duration of prepended intro in seconds.
+            scene_durations: Actual duration of each scene clip in seconds.
+
+        Returns:
+            Updated VideoClip with BGM mixed in.
+        """
+        from moviepy.editor import AudioFileClip, CompositeAudioClip, concatenate_audioclips
+
+        bgm = AudioFileClip(str(bgm_path))
+
+        # Loop BGM if shorter than video
+        video_duration = video.duration
+        if bgm.duration < video_duration:
+            n_loops = math.ceil(video_duration / bgm.duration)
+            bgm = concatenate_audioclips([bgm] * n_loops)
+
+        # Trim to video length
+        bgm = bgm.subclip(0, video_duration)
+
+        # Apply fade in/out
+        bgm = bgm.audio_fadein(2.0).audio_fadeout(3.0)
+
+        # Apply per-scene volume via moviepy's volumex with a callable
+        # Build a lookup list: (start_time, end_time, volume) per scene
+        volume_segments: list[tuple[float, float, float]] = []
+        t = intro_duration
+        for i, scene in enumerate(scenes):
+            intensity = getattr(scene, "bgm_intensity", BGM_VOLUME)
+            vol = max(0.05, min(1.0, float(intensity)))
+            dur = scene_durations[i] if i < len(scene_durations) else 0.0
+            volume_segments.append((t, t + dur, vol))
+            t += dur
+
+        def volume_at_time(t_sec: float) -> float:
+            """Return BGM volume fraction at time t_sec."""
+            for start, end, vol in volume_segments:
+                if start <= t_sec < end:
+                    return vol
+            # Intro or post-content: use moderate volume
+            return BGM_VOLUME
+
+        try:
+            bgm = bgm.fl(lambda gf, t: gf(t) * volume_at_time(t), keep_duration=True)
+        except Exception as e:
+            logger.warning(
+                f"Per-scene BGM volume automation failed, using flat volume: {e}"
+            )
+            bgm = bgm.volumex(BGM_VOLUME)
+
+        # Mix with narration audio
+        if video.audio:
+            mixed_audio = CompositeAudioClip([video.audio, bgm])
+        else:
+            mixed_audio = bgm
+
+        return video.set_audio(mixed_audio)
+
+    # ------------------------------------------------------------------
+    # Helpers (mostly unchanged from original)
+    # ------------------------------------------------------------------
+
     def _fit_to_resolution(self, clip, width: int, height: int):
         """Resize clip to target resolution, maintaining aspect ratio with black bars."""
         from moviepy.editor import ColorClip, CompositeVideoClip
@@ -265,10 +571,8 @@ class VideoAssembler:
         target_ratio = width / height
 
         if abs(clip_ratio - target_ratio) < 0.01:
-            # Same ratio — just resize
             return clip.resize((width, height))
         elif clip_ratio > target_ratio:
-            # Wider than target — fit width, add top/bottom bars
             new_w = width
             new_h = int(width / clip_ratio)
             resized = clip.resize((new_w, new_h))
@@ -276,7 +580,6 @@ class VideoAssembler:
             y_offset = (height - new_h) // 2
             return CompositeVideoClip([bg, resized.set_position(("center", y_offset))])
         else:
-            # Taller than target — fit height, add left/right bars
             new_h = height
             new_w = int(height * clip_ratio)
             resized = clip.resize((new_w, new_h))
@@ -302,36 +605,6 @@ class VideoAssembler:
         logger.debug(f"Selected BGM: {selected.name} (mood={mood})")
         return selected
 
-    def _add_bgm(self, video, bgm_path: Path):
-        """Add background music at BGM_VOLUME level, looped to video duration."""
-        from moviepy.editor import AudioFileClip, CompositeAudioClip, afx
-
-        bgm = AudioFileClip(str(bgm_path))
-
-        # Loop BGM if shorter than video
-        video_duration = video.duration
-        if bgm.duration < video_duration:
-            n_loops = math.ceil(video_duration / bgm.duration)
-            from moviepy.editor import concatenate_audioclips
-            bgm = concatenate_audioclips([bgm] * n_loops)
-
-        # Trim to video length
-        bgm = bgm.subclip(0, video_duration)
-
-        # Apply fade in/out
-        bgm = bgm.audio_fadein(2.0).audio_fadeout(3.0)
-
-        # Lower volume
-        bgm = bgm.volumex(BGM_VOLUME)
-
-        # Mix with existing audio
-        if video.audio:
-            mixed_audio = CompositeAudioClip([video.audio, bgm])
-        else:
-            mixed_audio = bgm
-
-        return video.set_audio(mixed_audio)
-
     def _write_srt(self, entries: list[dict], srt_path: Path) -> None:
         """Write SRT subtitle file from scene timing entries."""
         lines = []
@@ -356,7 +629,6 @@ class VideoAssembler:
         if len(text) <= max_chars_per_line:
             return text
 
-        # Split on Korean punctuation or spaces
         words = text.split()
         lines = []
         current = ""
@@ -372,26 +644,29 @@ class VideoAssembler:
 
         # Max 2 lines in subtitle
         if len(lines) > 2:
-            lines = [" ".join(lines[:len(lines)//2]), " ".join(lines[len(lines)//2:])]
+            lines = [
+                " ".join(lines[: len(lines) // 2]),
+                " ".join(lines[len(lines) // 2 :]),
+            ]
 
         return "\n".join(lines)
 
-    def _burn_subtitles(self, raw_video: Path, srt_path: Path, output_path: Path) -> None:
+    def _burn_subtitles(
+        self, raw_video: Path, srt_path: Path, output_path: Path
+    ) -> None:
         """Use ffmpeg to burn subtitles into video with Korean font styling."""
-        # FFmpeg subtitles filter with force_style for Korean appearance
         subtitle_style = (
             f"FontSize={SUBTITLE_FONT_SIZE},"
-            f"PrimaryColour=&H00FFFFFF,"    # White text
-            f"OutlineColour=&H00000000,"    # Black outline
-            f"BackColour=&H66000000,"        # Semi-transparent background
+            f"PrimaryColour=&H00FFFFFF,"
+            f"OutlineColour=&H00000000,"
+            f"BackColour=&H66000000,"
             f"Outline={int(SUBTITLE_STROKE_WIDTH)},"
             f"Shadow=0,"
             f"Bold=1,"
             f"MarginV={SUBTITLE_MARGIN_BOTTOM},"
-            f"Alignment=2"                  # Bottom center
+            f"Alignment=2"
         )
 
-        # Escape the SRT path for ffmpeg filter
         srt_str = str(srt_path).replace("\\", "/").replace(":", "\\:")
 
         cmd = [
@@ -411,8 +686,6 @@ class VideoAssembler:
 
         if result.returncode != 0:
             logger.error(f"FFmpeg subtitle burn failed: {result.stderr[-500:]}")
-            # Fallback: just copy raw video without subtitles
-            import shutil
             shutil.copy2(raw_video, output_path)
             logger.warning("Subtitle burn failed, using video without subtitles")
         else:
@@ -425,3 +698,4 @@ if __name__ == "__main__":
     print("VideoAssembler ready.")
     print(f"  Intro path: {assembler.intro_path} (exists: {assembler.intro_path.exists()})")
     print(f"  BGM dir: {assembler.bgm_dir} (exists: {assembler.bgm_dir.exists()})")
+    print(f"  Ken Burns effects: {list(KEN_BURNS_FILTERS.keys())}")

@@ -36,8 +36,11 @@ pyyaml>=6.0.1
 # Environment variables
 python-dotenv>=1.0.1
 
-# HTTP requests
+# HTTP requests (ClovaVoice TTS + fal.ai Flux.1 image generation)
 requests>=2.32.0
+
+# fal.ai client — Flux.1 image generation (HTTP is used directly, but SDK available)
+fal-client>=0.10.0
 
 # Utilities
 numpy>=1.24.0
