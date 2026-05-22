@@ -120,6 +120,48 @@ class VideoAssembler:
     # Public API
     # ------------------------------------------------------------------
 
+    def _get_scene_clip(self, scene, image_path: Path, audio_clip,
+                        run_dir: Optional[Path] = None, scene_index: int = 0):
+        """
+        Get video clip for a scene.
+        Priority: Wan2.1 pre-generated clip > Ken Burns from image.
+
+        Args:
+            scene: Scene object with ken_burns attribute.
+            image_path: Source image file for Ken Burns fallback.
+            audio_clip: moviepy AudioFileClip to set on the returned clip.
+            run_dir: Optional run directory to search for pre-generated Wan2.1 clips.
+            scene_index: Scene index used for clip filename lookup.
+
+        Returns:
+            moviepy VideoClip with audio attached, sized to VIDEO_WIDTH x VIDEO_HEIGHT.
+        """
+        # Check for pre-generated Wan2.1 clip
+        if run_dir:
+            wan_clip_path = run_dir / "video_clips" / f"scene_{scene_index:03d}.mp4"
+            if wan_clip_path.exists():
+                logger.info(f"    Scene {scene_index}: Using Wan2.1 clip")
+                from moviepy.editor import VideoFileClip, concatenate_videoclips
+                clip = VideoFileClip(str(wan_clip_path))
+                # Loop if Wan2.1 clip is shorter than audio
+                if clip.duration < audio_clip.duration:
+                    loops = math.ceil(audio_clip.duration / clip.duration)
+                    clip = concatenate_videoclips([clip] * loops)
+                clip = clip.subclip(0, audio_clip.duration)
+                clip = self._fit_to_resolution(clip, VIDEO_WIDTH, VIDEO_HEIGHT)
+                return clip.set_audio(audio_clip)
+
+        # Fall back to Ken Burns
+        ken_burns = getattr(scene, "ken_burns", "slow_zoom")
+        logger.info(f"    Scene {scene_index}: Ken Burns ({ken_burns})")
+        tmp_dir = Path(tempfile.mkdtemp())
+        kb_path = tmp_dir / f"kb_{scene_index:03d}.mp4"
+        kb_path = self._apply_ken_burns(image_path, kb_path,
+                                        ken_burns, audio_clip.duration)
+        from moviepy.editor import VideoFileClip
+        clip = VideoFileClip(str(kb_path))
+        return clip.set_audio(audio_clip)
+
     def assemble(
         self,
         script_result,       # ScriptResult from script_generator
@@ -127,6 +169,7 @@ class VideoAssembler:
         image_files: list[Path],
         output_path: str | Path,
         include_intro: bool = True,
+        run_dir: Optional[Path] = None,  # NEW: for Wan2.1 clip lookup
     ) -> AssemblyResult:
         """
         Assemble all components into a final MP4 video.
@@ -167,12 +210,14 @@ class VideoAssembler:
         logger.info(f"Assembling video: {n_scenes} scenes, category={category}")
 
         # ------------------------------------------------------------------
-        # 1. Build scene clips with Ken Burns + audio
+        # 1. Build scene clips with Wan2.1 (if available) or Ken Burns + audio
         # ------------------------------------------------------------------
         scene_clips = []
         srt_entries = []
         cumulative_time = 0.0
         scene_durations: list[float] = []
+        wan_clip_count = 0
+        ken_burns_count = 0
 
         with tempfile.TemporaryDirectory(prefix="ej_kb_") as tmp_dir:
             tmp_path = Path(tmp_dir)
@@ -191,26 +236,33 @@ class VideoAssembler:
                 # Load audio to get exact duration
                 audio_clip = AudioFileClip(str(audio_path))
                 duration = audio_clip.duration
-                audio_clip.close()
 
                 scene = scenes[i]
-                ken_burns = getattr(scene, "ken_burns", "slow_zoom")
 
-                # Apply Ken Burns animation via FFmpeg
-                kb_clip_path = tmp_path / f"kb_{i:03d}.mp4"
+                # Determine if a pre-generated Wan2.1 clip exists for this scene
+                wan_available = (
+                    run_dir is not None
+                    and (run_dir / "video_clips" / f"scene_{i:03d}.mp4").exists()
+                )
+
                 try:
-                    self._apply_ken_burns(
+                    video_clip = self._get_scene_clip(
+                        scene=scene,
                         image_path=image_path,
-                        output_path=kb_clip_path,
-                        ken_burns=ken_burns,
-                        duration=duration,
+                        audio_clip=audio_clip,
+                        run_dir=run_dir,
+                        scene_index=i,
                     )
+                    if wan_available:
+                        wan_clip_count += 1
+                    else:
+                        ken_burns_count += 1
                 except Exception as e:
                     logger.warning(
-                        f"Ken Burns failed for scene {i} (using static fallback): "
+                        f"_get_scene_clip failed for scene {i} (using static Ken Burns fallback): "
                         f"{type(e).__name__}: {e}"
                     )
-                    # Fallback: static clip via FFmpeg (no zoompan)
+                    # Fallback: static Ken Burns via FFmpeg
                     kb_clip_path = tmp_path / f"kb_{i:03d}_static.mp4"
                     self._apply_ken_burns(
                         image_path=image_path,
@@ -218,16 +270,14 @@ class VideoAssembler:
                         ken_burns="static",
                         duration=duration,
                     )
+                    video_clip = VideoFileClip(str(kb_clip_path))
+                    audio_clip_fb = AudioFileClip(str(audio_path))
+                    video_clip = video_clip.set_audio(audio_clip_fb)
+                    ken_burns_count += 1
 
-                # Load the animated clip and attach audio
-                video_clip = VideoFileClip(str(kb_clip_path))
-                audio_clip = AudioFileClip(str(audio_path))
-
-                # Ensure clip duration matches audio (zoompan can be slightly off)
+                # Ensure clip duration matches audio (zoompan / looping can be slightly off)
                 if abs(video_clip.duration - duration) > 0.1:
                     video_clip = video_clip.set_duration(duration)
-
-                video_clip = video_clip.set_audio(audio_clip)
 
                 scene_clips.append(video_clip)
                 scene_durations.append(duration)
@@ -240,6 +290,11 @@ class VideoAssembler:
                     "text": narration,
                 })
                 cumulative_time += duration
+
+            logger.info(
+                f"Scene clip sources: {wan_clip_count} Wan2.1 clip(s), "
+                f"{ken_burns_count} Ken Burns clip(s)"
+            )
 
             if not scene_clips:
                 raise RuntimeError("No valid scene clips could be assembled")

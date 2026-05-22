@@ -317,12 +317,15 @@ def stage_assemble(
     output_dir = PROJECT_ROOT / "data" / "runs" / run_id
     output_path = output_dir / f"output_{run_id}.mp4"
 
+    run_dir = PROJECT_ROOT / "data" / "runs" / run_id
+
     assembler = VideoAssembler(assets_dir=PROJECT_ROOT / "assets")
     result = assembler.assemble(
         script_result=script,
         audio_files=audio_files,
         image_files=image_files,
         output_path=output_path,
+        run_dir=run_dir,   # NEW: hybrid mode (Wan2.1 clips if available)
     )
 
     file_size_mb = output_path.stat().st_size / 1024 / 1024
@@ -430,6 +433,36 @@ def stage_upload(
         logger.info(f"Topic {topic_data['id']} marked as used")
 
     return video_url
+
+
+# ---------------------------------------------------------------------------
+# Colab instructions helper
+# ---------------------------------------------------------------------------
+
+def _print_colab_instructions(run_id: str, image_count: int) -> None:
+    """Print instructions for running Colab notebooks."""
+    print("\n" + "=" * 60)
+    print("🎬 Colab 처리 단계 (선택사항)")
+    print("=" * 60)
+    print(f"Run ID: {run_id}")
+    print(f"이미지 {image_count}개 생성 완료\n")
+    print("더 높은 품질을 원하면 Colab 노트북 실행:")
+    print("  1. colab/01_gpt_sovits_tts.ipynb → 목소리 클로닝 TTS")
+    print("  2. colab/02_wan21_video.ipynb    → AI 영상 클립 생성")
+    print(f"\nColab 실행 후 이어서 진행:")
+    print(f"  python pipeline/main.py --skip-to assemble --run-id {run_id}")
+    print("\nColab 없이 바로 계속 진행하려면 아무 키나 누르세요... (10초 후 자동 진행)")
+    print("=" * 60 + "\n")
+
+    import time
+    # Non-blocking 10-second wait for user input
+    try:
+        for remaining in range(10, 0, -1):
+            print(f"\r자동 진행까지: {remaining}초... (Enter 누르면 즉시 진행)", end="", flush=True)
+            time.sleep(1)
+        print("\r자동으로 다음 단계 진행합니다.                              ")
+    except (KeyboardInterrupt, EOFError):
+        print("\n진행합니다.")
 
 
 # ---------------------------------------------------------------------------
@@ -546,6 +579,10 @@ def run_pipeline(
         image_paths = state.get("image_files", [])
         image_files = [Path(p) for p in image_paths]
         logger.info(f"Reusing {len(image_files)} image files from state")
+
+    # Print Colab instructions after images stage (when images were freshly generated)
+    if "images" in stages_to_run:
+        _print_colab_instructions(run_id, len(image_files))
 
     # ---------------------
     # THUMBNAIL

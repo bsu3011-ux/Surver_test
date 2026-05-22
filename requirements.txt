@@ -45,3 +45,8 @@ fal-client>=0.10.0
 # Utilities
 numpy>=1.24.0
 tqdm>=4.66.0
+
+# --- Colab 노트북 전용 (pip install 불필요, Colab에서 자동 설치) ---
+# soundfile      (Colab notebook 01)
+# imageio[ffmpeg] (Colab notebook 02)
+# diffusers      (Colab notebook 02)
