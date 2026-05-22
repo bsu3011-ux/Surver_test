@@ -2,13 +2,14 @@
 Main orchestrator for 어쩌다지식 YouTube Automation Pipeline.
 
 Pipeline stages:
-  1. topic    — Select next topic from queue
-  2. script   — Generate script with Claude claude-opus-4-7
-  3. tts      — Synthesize narration audio (per scene)
-  4. images   — Generate illustrations (per scene)
-  5. assemble — Combine into video with BGM + subtitles
-  6. review   — Upload to Drive + Telegram approval gate
-  7. upload   — Publish to YouTube (on approval)
+  1. topic     — Select next topic from queue
+  2. script    — Generate script with Claude claude-opus-4-7
+  3. tts       — Synthesize narration audio (per scene)
+  4. images    — Generate illustrations (per scene)
+  5. thumbnail — Generate YouTube thumbnail (1280×720 JPEG)
+  6. assemble  — Combine into video with BGM + subtitles
+  7. review    — Upload to Drive + Telegram approval gate
+  8. upload    — Publish to YouTube with thumbnail (on approval)
 
 Usage:
   python pipeline/main.py                           # Full pipeline, auto topic
@@ -75,7 +76,7 @@ logger = logging.getLogger("main")
 # Pipeline state management
 # ---------------------------------------------------------------------------
 
-STAGES = ["topic", "script", "tts", "images", "assemble", "review", "upload"]
+STAGES = ["topic", "script", "tts", "images", "thumbnail", "assemble", "review", "upload"]
 RUNS_DIR = PROJECT_ROOT / "data" / "runs"
 RUNS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -243,6 +244,64 @@ def stage_images(run_id: str, state: dict, script: ScriptResult) -> list[Path]:
     return image_files
 
 
+def stage_thumbnail(
+    run_id: str,
+    state: dict,
+    script: ScriptResult,
+    image_files: list[Path],
+    image_gen=None,
+) -> Path:
+    """Stage 5: Generate YouTube thumbnail (1280×720 JPEG)."""
+    logger.info("=" * 60)
+    logger.info("STAGE 5: THUMBNAIL GENERATION")
+    logger.info("=" * 60)
+
+    from pipeline.thumbnail_generator import ThumbnailGenerator
+    from pipeline.script_generator import ThumbnailMeta
+
+    output_dir = PROJECT_ROOT / "data" / "runs" / run_id
+    output_dir.mkdir(parents=True, exist_ok=True)
+    thumbnail_path = output_dir / f"thumbnail_{run_id}.jpg"
+
+    if thumbnail_path.exists():
+        logger.info(f"Using cached thumbnail: {thumbnail_path.name}")
+    else:
+        gen = ThumbnailGenerator(
+            image_generator=image_gen,
+            assets_dir=PROJECT_ROOT / "assets",
+        )
+
+        meta = script.thumbnail
+        if not meta:
+            # Fallback: create basic meta from script title + category
+            category_badges = {"psychology": "심리학", "life": "잡학", "tech": "테크"}
+            meta = ThumbnailMeta(
+                template="shock",
+                main_text=script.title[:12],
+                sub_text="어쩌다지식",
+                background_prompt=(
+                    f"Korean person looking surprised, {script.category} concept, "
+                    f"dramatic lighting, close-up face"
+                ),
+                keyword_badge=category_badges.get(script.category, "지식"),
+            )
+            logger.info(
+                f"No thumbnail meta from script — using fallback (title={script.title[:12]})"
+            )
+
+        thumbnail_path = gen.generate(
+            meta=meta,
+            output_path=thumbnail_path,
+            scene_images=image_files,
+        )
+        logger.info(f"Thumbnail generated: {thumbnail_path.name}")
+
+    state["thumbnail_path"] = str(thumbnail_path)
+    update_stage(run_id, "thumbnail", "completed", {"thumbnail_path": str(thumbnail_path)})
+
+    return thumbnail_path
+
+
 def stage_assemble(
     run_id: str,
     state: dict,
@@ -250,9 +309,9 @@ def stage_assemble(
     audio_files: list[Path],
     image_files: list[Path],
 ) -> Path:
-    """Stage 5: Assemble video from scenes, audio, images, BGM, subtitles."""
+    """Stage 6: Assemble video from scenes, audio, images, BGM, subtitles."""
     logger.info("=" * 60)
-    logger.info("STAGE 5: VIDEO ASSEMBLY")
+    logger.info("STAGE 6: VIDEO ASSEMBLY")
     logger.info("=" * 60)
 
     output_dir = PROJECT_ROOT / "data" / "runs" / run_id
@@ -286,11 +345,22 @@ def stage_assemble(
     return output_path
 
 
-def stage_review(run_id: str, state: dict, video_path: Path, script: ScriptResult) -> str:
-    """Stage 6: Upload to Drive + Telegram approval gate. Returns decision."""
+def stage_review(
+    run_id: str,
+    state: dict,
+    video_path: Path,
+    script: ScriptResult,
+    thumbnail_path: Optional[Path] = None,
+) -> str:
+    """Stage 7: Upload to Drive + Telegram approval gate. Returns decision."""
     logger.info("=" * 60)
-    logger.info("STAGE 6: REVIEW GATE")
+    logger.info("STAGE 7: REVIEW GATE")
     logger.info("=" * 60)
+
+    if thumbnail_path and thumbnail_path.exists():
+        logger.info(f"Thumbnail available for review: {thumbnail_path.name}")
+    else:
+        logger.info("No thumbnail available for this review submission")
 
     gate = ReviewGate()
     record = gate.submit_for_review(
@@ -314,14 +384,38 @@ def stage_review(run_id: str, state: dict, video_path: Path, script: ScriptResul
     return decision
 
 
-def stage_upload(run_id: str, state: dict, video_path: Path, script: ScriptResult) -> str:
-    """Stage 7: Upload to YouTube. Returns video URL."""
+def stage_upload(
+    run_id: str,
+    state: dict,
+    video_path: Path,
+    script: ScriptResult,
+    thumbnail_path: Optional[Path] = None,
+) -> str:
+    """Stage 8: Upload to YouTube (with thumbnail if available). Returns video URL."""
     logger.info("=" * 60)
-    logger.info("STAGE 7: YOUTUBE UPLOAD")
+    logger.info("STAGE 8: YOUTUBE UPLOAD")
     logger.info("=" * 60)
 
     uploader = YouTubeUploader()
     video_url = uploader.upload(video_path, script)
+
+    # Set custom thumbnail immediately after upload if available
+    if thumbnail_path and thumbnail_path.exists():
+        # Extract video_id from the returned URL
+        video_id = video_url.split("/")[-1] if video_url else ""
+        if video_id:
+            success = uploader.update_thumbnail(video_id, thumbnail_path)
+            if success:
+                logger.info(f"Thumbnail uploaded for video {video_id}: {thumbnail_path.name}")
+            else:
+                logger.warning(
+                    f"Thumbnail upload failed for video {video_id} — "
+                    f"set manually at https://studio.youtube.com"
+                )
+        else:
+            logger.warning("Could not extract video ID from URL — skipping thumbnail upload")
+    else:
+        logger.info("No thumbnail provided — YouTube will auto-select a frame")
 
     logger.info(f"YouTube upload complete: {video_url}")
     update_stage(run_id, "upload", "completed", {"youtube_url": video_url})
@@ -440,6 +534,7 @@ def run_pipeline(
     # IMAGES
     # ---------------------
     image_files: list[Path] = []
+    image_gen_instance = None  # Reuse for thumbnail stage to share style + avoid re-init
     if "images" in stages_to_run:
         try:
             image_files = stage_images(run_id, state, script)
@@ -451,6 +546,33 @@ def run_pipeline(
         image_paths = state.get("image_files", [])
         image_files = [Path(p) for p in image_paths]
         logger.info(f"Reusing {len(image_files)} image files from state")
+
+    # ---------------------
+    # THUMBNAIL
+    # ---------------------
+    thumbnail_path: Optional[Path] = None
+    if "thumbnail" in stages_to_run:
+        try:
+            # Attempt to reuse image_gen_instance if available; otherwise pass None
+            # so ThumbnailGenerator creates its own or falls back to scene images
+            thumbnail_path = stage_thumbnail(
+                run_id, state, script, image_files, image_gen=image_gen_instance
+            )
+        except Exception as e:
+            update_stage(run_id, "thumbnail", "failed", {"error": str(e)})
+            logger.error(f"Thumbnail stage failed: {e}", exc_info=True)
+            # Non-fatal: pipeline continues without a thumbnail
+            logger.warning("Continuing pipeline without thumbnail")
+            thumbnail_path = None
+    else:
+        tp = state.get("thumbnail_path")
+        if tp:
+            thumbnail_path = Path(tp)
+            if thumbnail_path.exists():
+                logger.info(f"Reusing thumbnail from state: {thumbnail_path.name}")
+            else:
+                logger.warning(f"Cached thumbnail path not found: {tp}")
+                thumbnail_path = None
 
     # ---------------------
     # ASSEMBLE
@@ -478,7 +600,7 @@ def run_pipeline(
     decision = "approved"  # Default if review stage is skipped
     if "review" in stages_to_run:
         try:
-            decision = stage_review(run_id, state, video_path, script)
+            decision = stage_review(run_id, state, video_path, script, thumbnail_path)
         except Exception as e:
             update_stage(run_id, "review", "failed", {"error": str(e)})
             logger.error(f"Review stage failed: {e}", exc_info=True)
@@ -504,7 +626,7 @@ def run_pipeline(
     youtube_url = ""
     if "upload" in stages_to_run:
         try:
-            youtube_url = stage_upload(run_id, state, video_path, script)
+            youtube_url = stage_upload(run_id, state, video_path, script, thumbnail_path)
         except Exception as e:
             update_stage(run_id, "upload", "failed", {"error": str(e)})
             logger.error(f"Upload stage failed: {e}", exc_info=True)

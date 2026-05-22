@@ -27,8 +27,37 @@ from pipeline.topic_manager import Topic
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# Category → accent color mapping (shared with ThumbnailGenerator)
+# ---------------------------------------------------------------------------
+
+CATEGORY_ACCENT_COLORS: dict[str, str] = {
+    "psychology": "#A855F7",  # Purple
+    "life":       "#F97316",  # Orange
+    "tech":       "#06B6D4",  # Cyan
+}
+
+# ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------
+
+
+@dataclass
+class ThumbnailMeta:
+    """
+    Metadata for YouTube thumbnail generation.
+
+    Defined here (not in thumbnail_generator) to keep the import graph
+    acyclic: script_generator → topic_manager only;
+             thumbnail_generator → script_generator (imports ThumbnailMeta).
+    """
+
+    template: str = "shock"            # "shock" | "list" | "question" | "compare" | "auto"
+    main_text: str = ""                # 임팩트 큰 텍스트 (1-4 단어)
+    sub_text: str = ""                 # 보조 설명 텍스트 (10자 이내)
+    number_text: str = ""              # "5가지", "3초" etc (list template)
+    background_prompt: str = ""        # English Flux.1 prompt for background image
+    keyword_badge: str = ""            # 카테고리 뱃지 ("심리학", "IT", "잡학")
+    accent_color: str = "#FF4444"      # Hex color for accents
 
 
 @dataclass
@@ -61,6 +90,7 @@ class ScriptResult:
     scenes: list[Scene] = field(default_factory=list)
     category: str = ""
     raw_response: str = ""
+    thumbnail: Optional["ThumbnailMeta"] = None  # Auto-generated thumbnail metadata
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -69,6 +99,8 @@ class ScriptResult:
     @classmethod
     def from_dict(cls, data: dict) -> "ScriptResult":
         scenes = [Scene(**s) for s in data.get("scenes", [])]
+        thumb_data = data.get("thumbnail")
+        thumbnail = ThumbnailMeta(**thumb_data) if thumb_data else None
         return cls(
             topic_id=data["topic_id"],
             title=data["title"],
@@ -79,6 +111,7 @@ class ScriptResult:
             scenes=scenes,
             category=data.get("category", ""),
             raw_response=data.get("raw_response", ""),
+            thumbnail=thumbnail,
         )
 
 
@@ -200,6 +233,15 @@ JSON 응답 형식 (반드시 이 형식으로, 다른 텍스트 없이 순수 J
   "description": "영상 내용을 2-3문장으로 요약한 한국어 설명",
   "seo_description": "유튜브 설명란용 전체 텍스트 (해시태그 포함)",
   "tags": ["태그1", "태그2"],
+  "thumbnail": {
+    "template": "shock",
+    "main_text": "2-4단어 임팩트 텍스트",
+    "sub_text": "보조 설명 (10자 이내)",
+    "number_text": "숫자가 있으면 예: 5가지, 없으면 빈 문자열",
+    "background_prompt": "English prompt: shocked Korean person close-up, dramatic lighting",
+    "keyword_badge": "심리학",
+    "accent_color": "#A855F7"
+  },
   "scenes": [
     {
       "index": 0,
@@ -213,7 +255,16 @@ JSON 응답 형식 (반드시 이 형식으로, 다른 텍스트 없이 순수 J
       "image_composition": "wide"
     }
   ]
-}"""
+}
+
+[thumbnail 필드 설명]
+- template: "shock" (충격/훅), "list" (리스트/숫자), "question" (질문/호기심), "compare" (비교)
+- main_text: 썸네일 메인 텍스트, 1-4 단어, 임팩트 있게
+- sub_text: 보조 텍스트, 10자 이내
+- number_text: 리스트 템플릿에만, "5가지" "3초" 등 숫자 포함 텍스트 (비어 있으면 "" 사용)
+- background_prompt: 영어로 작성한 배경 이미지 생성 프롬프트
+- keyword_badge: 카테고리 뱃지 (심리학/잡학/테크)
+- accent_color: 카테고리별 강조색 (심리학=#A855F7, 생활=# F97316, IT=#06B6D4)"""
 
 USER_PROMPT_TEMPLATE = """다음 주제로 스크립트를 작성해주세요:
 
@@ -316,6 +367,7 @@ class ScriptGenerator:
         # Parse JSON response
         script_data = self._parse_response(raw_response)
         scenes = self._parse_scenes(script_data.get("scenes", []))
+        thumbnail = self._parse_thumbnail(script_data.get("thumbnail"), topic.category)
 
         result = ScriptResult(
             topic_id=topic.id,
@@ -327,11 +379,13 @@ class ScriptGenerator:
             scenes=scenes,
             category=topic.category,
             raw_response=raw_response,
+            thumbnail=thumbnail,
         )
 
         logger.info(
             f"Script generated: '{result.title}' | {len(result.scenes)} scenes | "
-            f"~{sum(s.duration_estimate for s in result.scenes) / 60:.1f} min"
+            f"~{sum(s.duration_estimate for s in result.scenes) / 60:.1f} min | "
+            f"thumbnail template={thumbnail.template if thumbnail else 'none'}"
         )
         return result
 
@@ -363,6 +417,79 @@ class ScriptGenerator:
                     pass
             logger.error(f"Failed to parse Claude JSON response: {e}\nRaw: {raw[:500]}")
             raise ValueError(f"Claude returned invalid JSON: {e}") from e
+
+    def _parse_thumbnail(
+        self, raw_thumb: Optional[dict], category: str
+    ) -> Optional[ThumbnailMeta]:
+        """
+        Parse and validate the 'thumbnail' section from Claude's JSON response.
+
+        Falls back to sensible defaults based on category when fields are missing
+        or the entire thumbnail section is absent.
+
+        Args:
+            raw_thumb: Dict from Claude's JSON 'thumbnail' key (may be None).
+            category:  Topic category ("psychology" | "life" | "tech") used to
+                       set accent_color when Claude does not provide one.
+
+        Returns:
+            ThumbnailMeta instance (never None — always provides at least defaults).
+        """
+        valid_templates = {"shock", "list", "question", "compare", "auto"}
+
+        # Determine category-appropriate accent color
+        default_accent = CATEGORY_ACCENT_COLORS.get(category, "#FF4444")
+
+        if not raw_thumb or not isinstance(raw_thumb, dict):
+            logger.debug("No thumbnail data in Claude response — using category defaults")
+            return ThumbnailMeta(
+                template="shock",
+                main_text="",
+                sub_text="",
+                number_text="",
+                background_prompt="",
+                keyword_badge={
+                    "psychology": "심리학",
+                    "life":       "잡학",
+                    "tech":       "테크",
+                }.get(category, "지식"),
+                accent_color=default_accent,
+            )
+
+        template = raw_thumb.get("template", "shock")
+        if template not in valid_templates:
+            logger.debug(
+                f"Invalid thumbnail template '{template}' from Claude, defaulting to 'shock'"
+            )
+            template = "shock"
+
+        # Accept accent_color from Claude only if it looks like a valid hex
+        raw_accent = raw_thumb.get("accent_color", "")
+        if (
+            isinstance(raw_accent, str)
+            and raw_accent.startswith("#")
+            and len(raw_accent) in (4, 7)
+        ):
+            accent_color = raw_accent
+        else:
+            # Override with category-based color (more reliable than Claude's guess)
+            accent_color = default_accent
+
+        thumb = ThumbnailMeta(
+            template=template,
+            main_text=str(raw_thumb.get("main_text", "")).strip(),
+            sub_text=str(raw_thumb.get("sub_text", "")).strip(),
+            number_text=str(raw_thumb.get("number_text", "")).strip(),
+            background_prompt=str(raw_thumb.get("background_prompt", "")).strip(),
+            keyword_badge=str(raw_thumb.get("keyword_badge", "")).strip(),
+            accent_color=accent_color,
+        )
+
+        logger.debug(
+            f"Parsed ThumbnailMeta: template={thumb.template}, "
+            f"main='{thumb.main_text}', accent={thumb.accent_color}"
+        )
+        return thumb
 
     def _get_arc_defaults(self, position_index: int, total_scenes: int) -> dict:
         """
