@@ -1,0 +1,44 @@
+name: 영어 단어 매일 발송
+
+on:
+  schedule:
+    # 매일 오전 8시 KST (= UTC 23:00 전날)
+    - cron: "0 23 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "오늘 이미 발송했어도 강제 재발송"
+        type: boolean
+        default: false
+
+jobs:
+  send-vocab:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: 의존성 설치
+        run: pip install anthropic python-dotenv requests
+
+      - name: user_profile.json 복원
+        # GitHub Secret에 저장된 프로필 JSON을 파일로 복원
+        run: |
+          mkdir -p english_learning/data
+          echo '${{ secrets.ENGLISH_USER_PROFILE }}' > english_learning/data/user_profile.json
+
+      - name: 단어 생성 및 텔레그램 발송
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          ARGS=""
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            ARGS="--force"
+          fi
+          python -m english_learning.daily_vocab $ARGS
