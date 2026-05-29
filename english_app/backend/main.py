@@ -500,24 +500,30 @@ def get_dashboard():
     }
 
 
-# ── 빌드된 프론트엔드 정적 파일 서빙 (단일 포트 운영) ──────────────
-# npm run build 로 생성된 frontend/dist 를 FastAPI 가 직접 서빙한다.
-# 이렇게 하면 포트 1개(8002)로 앱 전체를 띄울 수 있어 터널/배포가 단순해진다.
-FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
+# ── 빌드된 프론트엔드 정적 파일 서빙 ─────────────────────────────────
+from pathlib import Path
 
-if os.path.isdir(FRONTEND_DIST):
-    _assets_dir = os.path.join(FRONTEND_DIST, "assets")
-    if os.path.isdir(_assets_dir):
-        app.mount("/assets", StaticFiles(directory=_assets_dir), name="assets")
+FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
 
-    @app.get("/{full_path:path}")
-    def serve_spa(full_path: str):
-        # API 경로는 위에서 이미 매칭되므로 여기 도달하지 않는다.
-        candidate = os.path.join(FRONTEND_DIST, full_path)
-        if full_path and os.path.isfile(candidate):
-            return FileResponse(candidate)
-        # 그 외 모든 경로는 SPA 진입점(index.html) 반환 → react-router 처리
-        return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
+
+@app.get("/assets/{file_path:path}")
+def serve_asset(file_path: str):
+    asset = FRONTEND_DIST / "assets" / file_path
+    if asset.exists() and asset.is_file():
+        return FileResponse(str(asset))
+    raise HTTPException(status_code=404, detail="Asset not found")
+
+
+@app.get("/{full_path:path}")
+def serve_spa(full_path: str):
+    if full_path:
+        candidate = FRONTEND_DIST / full_path
+        if candidate.exists() and candidate.is_file():
+            return FileResponse(str(candidate))
+    index = FRONTEND_DIST / "index.html"
+    if index.exists():
+        return FileResponse(str(index))
+    raise HTTPException(status_code=404, detail="Frontend not built. Run: cd frontend && npm run build")
 
 
 if __name__ == "__main__":
