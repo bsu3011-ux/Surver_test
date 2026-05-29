@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useContext } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { get, post } from '../api.js'
 import { ProfileContext } from '../App.jsx'
 
 export default function QuizPage() {
-  const navigate = useNavigate()
   const { profile } = useContext(ProfileContext)
+  const [searchParams] = useSearchParams()
+  const mode = searchParams.get('mode') || 'random'
+  const isReviewMode = mode === 'review'
 
   const [questions, setQuestions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -29,7 +31,7 @@ export default function QuizPage() {
     setFinished(false)
     setQuizResult(null)
 
-    get('/quiz/questions')
+    get(`/quiz/questions?mode=${mode}`)
       .then(data => {
         if (data.error) {
           setError(data.error)
@@ -133,18 +135,27 @@ export default function QuizPage() {
       <div className="max-w-2xl mx-auto px-4 py-8 text-center">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10">
           <div className="text-6xl mb-4">{emoji}</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">퀴즈 완료!</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">
+            {isReviewMode ? '오답 퀴즈 완료!' : '퀴즈 완료!'}
+          </h2>
+          {isReviewMode && <p className="text-sm text-red-500 mb-4">틀린 단어를 집중 복습했어요</p>}
           <div className="text-6xl font-bold text-indigo-600 mb-2">
             {quizResult.correct} <span className="text-3xl text-gray-400">/ {quizResult.total}</span>
           </div>
           <div className="text-lg text-gray-500 mb-8">정답률: {pct}%</div>
-          <div className="flex justify-center gap-4">
+          <div className="flex flex-wrap justify-center gap-3">
             <button
               onClick={fetchQuestions}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-xl transition"
             >
               다시 풀기
             </button>
+            <Link
+              to="/wrong-note"
+              className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold py-3 px-6 rounded-xl transition"
+            >
+              오답노트 보기
+            </Link>
             <Link
               to="/vocab"
               className="bg-white hover:bg-gray-50 text-indigo-600 border border-indigo-300 font-semibold py-3 px-6 rounded-xl transition"
@@ -170,6 +181,11 @@ export default function QuizPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
+      {isReviewMode && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2 mb-4 text-sm text-red-600 font-medium text-center">
+          🎯 오답 퀴즈 — 틀린 단어 위주로 출제됩니다
+        </div>
+      )}
       {/* Progress */}
       <div className="mb-6">
         <div className="flex justify-between text-sm text-gray-500 mb-2">

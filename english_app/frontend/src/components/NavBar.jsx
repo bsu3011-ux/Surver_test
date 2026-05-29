@@ -28,10 +28,11 @@ export default function NavBar() {
           <span>영어 학습</span>
         </NavLink>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 overflow-x-auto">
           <NavLink to="/" className={linkClass} end>홈</NavLink>
           <NavLink to="/vocab" className={linkClass}>단어학습</NavLink>
           <NavLink to="/quiz" className={linkClass}>퀴즈</NavLink>
+          <NavLink to="/wrong-note" className={linkClass}>오답노트</NavLink>
           <NavLink to="/conversation" className={linkClass}>회화연습</NavLink>
           <NavLink to="/dashboard" className={linkClass}>대시보드</NavLink>
 

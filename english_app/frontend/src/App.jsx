@@ -7,6 +7,7 @@ import VocabStudy from './pages/VocabStudy.jsx'
 import QuizPage from './pages/QuizPage.jsx'
 import Conversation from './pages/Conversation.jsx'
 import Dashboard from './pages/Dashboard.jsx'
+import WrongNote from './pages/WrongNote.jsx'
 import { get } from './api.js'
 
 export const ProfileContext = createContext(null)
@@ -48,6 +49,7 @@ export default function App() {
             <Route path="/quiz" element={<QuizPage />} />
             <Route path="/conversation" element={<Conversation />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/wrong-note" element={<WrongNote />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

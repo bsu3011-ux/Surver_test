@@ -287,8 +287,48 @@ def mark_vocab(body: VocabMark):
         conn.close()
 
 
+@app.get("/api/vocab/stats")
+def get_vocab_stats():
+    profile = get_profile()
+    if not profile:
+        raise HTTPException(status_code=400, detail="프로필이 없습니다.")
+
+    conn = get_conn()
+    try:
+        rows = conn.execute("""
+            SELECT id, english, pronunciation, korean, part_of_speech,
+                   example_en, example_ko, type, review_count, correct_count, created_date
+            FROM vocab_words WHERE level_code = ?
+            ORDER BY
+                CASE WHEN review_count = 0 THEN 2
+                     WHEN CAST(correct_count AS FLOAT) / review_count < 0.6 THEN 0
+                     ELSE 1 END ASC,
+                CAST(correct_count AS FLOAT) / (review_count + 0.01) ASC
+        """, (profile["level_code"],)).fetchall()
+    finally:
+        conn.close()
+
+    words = []
+    for row in rows:
+        d = dict(row)
+        d["accuracy"] = round(d["correct_count"] / d["review_count"] * 100) if d["review_count"] > 0 else None
+        words.append(d)
+
+    reviewed = [w for w in words if w["accuracy"] is not None]
+    wrong_count = sum(1 for w in reviewed if w["accuracy"] < 60)
+    avg_accuracy = round(sum(w["accuracy"] for w in reviewed) / len(reviewed)) if reviewed else None
+
+    return {
+        "words": words,
+        "wrong_count": wrong_count,
+        "total_reviewed": len(reviewed),
+        "avg_accuracy": avg_accuracy,
+    }
+
+
 @app.get("/api/quiz/questions")
-def get_quiz_questions():
+def get_quiz_questions(mode: str = "random"):
+    """mode: 'random' (기본, 오답 우선 혼합) | 'review' (오답 단어만)"""
     profile = get_profile()
     if not profile:
         raise HTTPException(status_code=400, detail="프로필이 없습니다.")
@@ -305,12 +345,28 @@ def get_quiz_questions():
     finally:
         conn.close()
 
-    if len(words) < 4:
-        return {"error": "단어가 부족합니다. 더 많은 단어를 학습해 주세요."}
+    def accuracy(w):
+        return w["correct_count"] / w["review_count"] if w["review_count"] > 0 else None
 
-    # Generate up to 10 questions: 50% meaning, 50% english
-    sample_size = min(10, len(words))
-    sampled = random.sample(words, sample_size)
+    wrong_words = [w for w in words if accuracy(w) is not None and accuracy(w) < 0.7]
+    other_words = [w for w in words if w not in wrong_words]
+
+    if mode == "review":
+        if len(wrong_words) < 4:
+            return {"error": f"오답 단어가 {len(wrong_words)}개뿐입니다. 퀴즈를 더 풀어 오답을 쌓아보세요!", "wrong_count": len(wrong_words)}
+        pool = wrong_words
+    else:
+        # 오답 최대 6개 + 나머지 랜덤으로 10개 채우기
+        n_wrong = min(len(wrong_words), 6)
+        n_other = min(len(other_words), 10 - n_wrong)
+        pool = (random.sample(wrong_words, n_wrong) if n_wrong else []) + \
+               (random.sample(other_words, n_other) if n_other else [])
+        if len(pool) < 4:
+            return {"error": "단어가 부족합니다. 더 많은 단어를 학습해 주세요."}
+        random.shuffle(pool)
+
+    sample_size = min(10, len(pool))
+    sampled = random.sample(pool, sample_size)
 
     questions = []
     for i, word in enumerate(sampled):
