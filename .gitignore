@@ -16,3 +16,8 @@ logs/
 # 영어 학습 — 사용자 프로필/로그 (개인정보)
 english_learning/data/user_profile.json
 english_learning/data/sent_log.json
+
+# 영어 학습 웹앱
+english_app/frontend/node_modules/
+english_app/frontend/package-lock.json
+english_app/backend/data/
