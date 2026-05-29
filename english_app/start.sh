@@ -4,7 +4,7 @@ cd "$(dirname "$0")"
 
 # 기존 프로세스 정리
 echo "🧹 기존 프로세스 종료 중..."
-fuser -k 8000/tcp 2>/dev/null || true
+fuser -k 8002/tcp 2>/dev/null || true
 fuser -k 5173/tcp 2>/dev/null || true
 sleep 1
 
@@ -28,7 +28,7 @@ SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # Start backend
 cd backend
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload &
+uvicorn main:app --host 0.0.0.0 --port 8002 --reload &
 BACKEND_PID=$!
 cd ..
 
@@ -40,7 +40,7 @@ cd ..
 
 sleep 3
 echo ""
-echo "✅ 백엔드:    http://localhost:8000"
+echo "✅ 백엔드:    http://localhost:8002"
 echo "✅ 프론트엔드: http://localhost:5173"
 echo "🌐 외부 접속:  http://${SERVER_IP}:5173"
 echo ""
