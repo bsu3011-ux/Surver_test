@@ -12,6 +12,8 @@ import anthropic
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from db import get_conn, init_db
@@ -496,6 +498,26 @@ def get_dashboard():
         "avg_accuracy": avg_accuracy,
         "streak_days": streak,
     }
+
+
+# ── 빌드된 프론트엔드 정적 파일 서빙 (단일 포트 운영) ──────────────
+# npm run build 로 생성된 frontend/dist 를 FastAPI 가 직접 서빙한다.
+# 이렇게 하면 포트 1개(8002)로 앱 전체를 띄울 수 있어 터널/배포가 단순해진다.
+FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
+
+if os.path.isdir(FRONTEND_DIST):
+    _assets_dir = os.path.join(FRONTEND_DIST, "assets")
+    if os.path.isdir(_assets_dir):
+        app.mount("/assets", StaticFiles(directory=_assets_dir), name="assets")
+
+    @app.get("/{full_path:path}")
+    def serve_spa(full_path: str):
+        # API 경로는 위에서 이미 매칭되므로 여기 도달하지 않는다.
+        candidate = os.path.join(FRONTEND_DIST, full_path)
+        if full_path and os.path.isfile(candidate):
+            return FileResponse(candidate)
+        # 그 외 모든 경로는 SPA 진입점(index.html) 반환 → react-router 처리
+        return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
 
 
 if __name__ == "__main__":
