@@ -23,7 +23,8 @@ def init_db():
             score INTEGER,
             total INTEGER,
             assessed_at TEXT,
-            daily_vocab_count INTEGER
+            daily_vocab_count INTEGER,
+            learning_mode TEXT DEFAULT 'general'
         );
 
         CREATE TABLE IF NOT EXISTS vocab_words (
@@ -54,6 +55,13 @@ def init_db():
             date TEXT PRIMARY KEY
         );
     """)
+
+    # 기존 DB에 learning_mode 컬럼 추가 (마이그레이션)
+    try:
+        cur.execute("ALTER TABLE user_profile ADD COLUMN learning_mode TEXT DEFAULT 'general'")
+        conn.commit()
+    except Exception:
+        pass  # 이미 존재하면 무시
 
     conn.commit()
     conn.close()

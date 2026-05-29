@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useContext } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { get } from '../api.js'
+import { get, post } from '../api.js'
 import { ProfileContext } from '../App.jsx'
+
+const MODES = {
+  general:        { label: '일반 학습',          emoji: '📚', desc: '일상·여행·비즈니스 어휘', color: 'indigo' },
+  toeic_speaking: { label: 'TOEIC Speaking',     emoji: '🎤', desc: '토스 대비 비즈니스·의견·묘사 어휘', color: 'rose' },
+}
 
 const LEVEL_COLORS = {
   A2: 'bg-green-100 text-green-800 border-green-200',
@@ -25,6 +30,23 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [modeChanging, setModeChanging] = useState(false)
+
+  const currentMode = profile?.learning_mode || 'general'
+
+  const handleModeChange = async (newMode) => {
+    if (newMode === currentMode || modeChanging) return
+    setModeChanging(true)
+    try {
+      await post('/profile/learning-mode', { learning_mode: newMode })
+      // Refresh profile in context
+      window.location.reload()
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setModeChanging(false)
+    }
+  }
 
   useEffect(() => {
     get('/dashboard')
@@ -137,6 +159,39 @@ export default function Dashboard() {
             <span className="text-xs font-semibold text-purple-700">회화 연습</span>
           </Link>
         </div>
+      </div>
+
+      {/* Learning mode selector */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+        <h3 className="font-bold text-gray-700 mb-3">학습 목표</h3>
+        <div className="grid grid-cols-2 gap-3">
+          {Object.entries(MODES).map(([key, m]) => {
+            const active = currentMode === key
+            return (
+              <button
+                key={key}
+                onClick={() => handleModeChange(key)}
+                disabled={modeChanging}
+                className={`p-4 rounded-xl border-2 text-left transition ${
+                  active
+                    ? 'border-indigo-500 bg-indigo-50'
+                    : 'border-gray-200 hover:border-indigo-300 bg-white'
+                }`}
+              >
+                <div className="text-xl mb-1">{m.emoji}</div>
+                <div className={`font-bold text-sm ${active ? 'text-indigo-700' : 'text-gray-700'}`}>
+                  {m.label} {active && '✓'}
+                </div>
+                <div className="text-xs text-gray-500 mt-0.5">{m.desc}</div>
+              </button>
+            )
+          })}
+        </div>
+        {currentMode === 'toeic_speaking' && (
+          <p className="text-xs text-rose-600 mt-3 bg-rose-50 rounded-lg px-3 py-2">
+            🎤 TOEIC Speaking 모드: 비즈니스·의견표현·사진묘사 어휘와 토스 유형별 회화 연습이 제공됩니다.
+          </p>
+        )}
       </div>
 
       {/* Retake level test */}

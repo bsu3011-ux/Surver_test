@@ -36,10 +36,15 @@ def startup_event():
 
 
 TOPICS = {
-    "daily": "일상 대화 (Daily Life) - greetings, hobbies, weather, everyday activities",
-    "travel": "여행 (Travel) - hotel booking, directions, restaurants, sightseeing",
-    "business": "비즈니스 (Business) - emails, meetings, presentations, negotiations",
-    "interview": "취업 면접 (Job Interview) - self-introduction, strengths/weaknesses, career goals",
+    "daily":            "일상 대화 (Daily Life) - greetings, hobbies, weather, everyday activities",
+    "travel":           "여행 (Travel) - hotel booking, directions, restaurants, sightseeing",
+    "business":         "비즈니스 (Business) - emails, meetings, presentations, negotiations",
+    "interview":        "취업 면접 (Job Interview) - self-introduction, strengths/weaknesses, career goals",
+    # TOEIC Speaking 전용
+    "toeic_picture":    "TOEIC Speaking Part 1 — 사진 묘사 (Picture Description). 직장·야외·일상 사진을 묘사하는 연습. 현재진행형, 위치 표현, 상태 묘사 중심",
+    "toeic_opinion":    "TOEIC Speaking Part 5 — 의견 표현 (Express an Opinion). 찬반 주제에 대해 이유 2가지를 들어 자신의 의견을 논리적으로 말하는 연습",
+    "toeic_solution":   "TOEIC Speaking Part 4 — 문제 해결 (Propose a Solution). 불만·문제 상황의 음성 메시지를 듣고 해결책을 제안하는 연습",
+    "toeic_respond":    "TOEIC Speaking Part 3 — 질문 응답 (Respond to Questions). 인터뷰·설문 형식으로 자연스럽게 답변하는 연습",
 }
 
 LEVEL_GUIDANCE = {
@@ -108,6 +113,30 @@ def get_profile_route():
     if profile:
         return {**profile, "exists": True}
     return {"exists": False}
+
+
+class LearningModeUpdate(BaseModel):
+    learning_mode: str  # 'general' | 'toeic_speaking'
+
+
+@app.post("/api/profile/learning-mode")
+def update_learning_mode(body: LearningModeUpdate):
+    allowed = {"general", "toeic_speaking"}
+    if body.learning_mode not in allowed:
+        raise HTTPException(status_code=400, detail="잘못된 학습 모드입니다.")
+    profile = get_profile()
+    if not profile:
+        raise HTTPException(status_code=400, detail="프로필이 없습니다.")
+    conn = get_conn()
+    try:
+        conn.execute(
+            "UPDATE user_profile SET learning_mode = ? WHERE id = 1",
+            (body.learning_mode,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"learning_mode": body.learning_mode}
 
 
 @app.get("/api/level-test/questions")
@@ -185,12 +214,26 @@ def get_today_vocab():
             }
 
         # Generate with Claude
+        learning_mode = profile.get("learning_mode", "general")
         client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-        prompt = f"""Generate {daily_count} English vocabulary items for a Korean learner at level {level_code}.
-Mix words and idioms (about 70% words, 30% idioms).
 
-Return ONLY a JSON array (no markdown, no code fences) with exactly {daily_count} items.
-Each item must have these fields:
+        if learning_mode == "toeic_speaking":
+            mode_instruction = f"""TOEIC Speaking 시험 준비 학습자를 위한 어휘 {daily_count}개를 선정하세요.
+다음 카테고리에서 골고루 선정해주세요:
+1. 비즈니스/직장 어휘 (propose, negotiate, allocate, implement, coordinate, delegate 등)
+2. 의견·논리 표현 (furthermore, consequently, nevertheless, whereas, advocate 등)
+3. 사진 묘사 표현 (adjacent to, in the foreground, appears to be, is engaged in 등)
+4. 격식체 표현 (I would like to suggest, It would be advisable to, regarding 등)
+5. 문제 해결 어휘 (alternative, compromise, priority, feasible, contingency 등)
+예문은 반드시 직장·비즈니스 상황으로 작성하세요."""
+        else:
+            mode_instruction = f"""레벨 {level_code} 한국인 영어 학습자를 위한 단어와 숙어를 70:30 비율로 선정하세요.
+오늘 날짜({date.today().isoformat()})를 시드로 활용해 매일 다른 단어를 제공하세요."""
+
+        prompt = f"""{mode_instruction}
+
+총 {daily_count}개를 선정하고, ONLY a JSON array (no markdown, no code fences)로 반환하세요.
+각 항목 필드:
 - type: "word" or "idiom"
 - english: the word or idiom
 - pronunciation: phonetic pronunciation (e.g. /prəˌnʌnsiˈeɪʃən/)

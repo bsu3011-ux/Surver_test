@@ -2,23 +2,36 @@ import React, { useState, useEffect, useRef, useContext } from 'react'
 import { post } from '../api.js'
 import { ProfileContext } from '../App.jsx'
 
-const TOPICS = [
-  { key: 'daily', label: '일상 대화', emoji: '☀️', desc: '인사, 취미, 날씨, 일상 활동' },
-  { key: 'travel', label: '여행', emoji: '✈️', desc: '호텔 예약, 길 찾기, 식당, 관광' },
-  { key: 'business', label: '비즈니스', emoji: '💼', desc: '이메일, 회의, 프레젠테이션, 협상' },
-  { key: 'interview', label: '취업 면접', emoji: '🎯', desc: '자기소개, 장단점, 커리어 목표' },
+const ALL_TOPICS = [
+  { key: 'daily',           label: '일상 대화',      emoji: '☀️', desc: '인사, 취미, 날씨, 일상 활동',               toeic: false },
+  { key: 'travel',          label: '여행',            emoji: '✈️', desc: '호텔 예약, 길 찾기, 식당, 관광',           toeic: false },
+  { key: 'business',        label: '비즈니스',        emoji: '💼', desc: '이메일, 회의, 프레젠테이션, 협상',         toeic: false },
+  { key: 'interview',       label: '취업 면접',       emoji: '🎯', desc: '자기소개, 장단점, 커리어 목표',            toeic: false },
+  { key: 'toeic_picture',   label: '사진 묘사',       emoji: '🖼️', desc: 'TOEIC Speaking Part 1 — 사진 속 상황 묘사', toeic: true },
+  { key: 'toeic_opinion',   label: '의견 표현',       emoji: '💡', desc: 'TOEIC Speaking Part 5 — 찬반 의견 + 이유 2가지', toeic: true },
+  { key: 'toeic_solution',  label: '문제 해결 제안',  emoji: '🔧', desc: 'TOEIC Speaking Part 4 — 불만 메시지에 해결책 제안', toeic: true },
+  { key: 'toeic_respond',   label: '질문 응답',       emoji: '🎙️', desc: 'TOEIC Speaking Part 3 — 인터뷰·설문 답변 연습', toeic: true },
 ]
 
 const GREETINGS = {
-  daily: "Hi there! How's your day going? Let's chat about everyday life!",
-  travel: "Hello! Are you planning a trip somewhere? I'd love to help you practice travel English!",
-  business: "Good day! Let's practice some professional English for the workplace. How can I help you?",
-  interview: "Welcome! I'll be your interviewer today. Please start by introducing yourself briefly.",
+  daily:          "Hi there! How's your day going? Let's chat about everyday life!",
+  travel:         "Hello! Are you planning a trip somewhere? I'd love to help you practice travel English!",
+  business:       "Good day! Let's practice some professional English for the workplace. How can I help you?",
+  interview:      "Welcome! I'll be your interviewer today. Please start by introducing yourself briefly.",
+  toeic_picture:  "Let's practice TOEIC Speaking Part 1 — Picture Description! I'll describe a scene and you try to describe it too, or I'll give you feedback on your description. Ready? Describe this: 'A woman is working at her desk in a busy open-plan office.'",
+  toeic_opinion:  "Let's practice TOEIC Speaking Part 5 — Express an Opinion! I'll give you a topic and you should state your opinion clearly with at least TWO reasons. Ready? Topic: 'Do you think working from home is more productive than working in an office?'",
+  toeic_solution: "Let's practice TOEIC Speaking Part 4 — Propose a Solution! Here's the situation: 'You received a voicemail from a customer named Mr. Kim. He ordered a laptop two weeks ago but it hasn't arrived yet, and he has an important meeting tomorrow.' Please respond and propose a solution.",
+  toeic_respond:  "Let's practice TOEIC Speaking Part 3 — Respond to Questions! Imagine you are being interviewed about your work habits. Question 1: How many hours a day do you usually spend working, and what time do you typically start your workday?",
 }
 
 export default function Conversation() {
   const { profile } = useContext(ProfileContext)
   const levelCode = profile?.level_code || 'B1'
+  const learningMode = profile?.learning_mode || 'general'
+
+  const TOPICS = learningMode === 'toeic_speaking'
+    ? ALL_TOPICS.filter(t => t.toeic || t.key === 'business' || t.key === 'interview')
+    : ALL_TOPICS.filter(t => !t.toeic)
 
   const [selectedTopic, setSelectedTopic] = useState(null)
   const [messages, setMessages] = useState([])
@@ -129,7 +142,7 @@ export default function Conversation() {
     )
   }
 
-  const topicInfo = TOPICS.find(t => t.key === selectedTopic)
+  const topicInfo = ALL_TOPICS.find(t => t.key === selectedTopic)
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-4 flex flex-col" style={{ height: 'calc(100vh - 80px)' }}>
