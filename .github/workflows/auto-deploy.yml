@@ -1,0 +1,23 @@
+name: 영어 앱 자동 배포
+
+on:
+  push:
+    branches:
+      - claude/english-learning-plan-ZwfZ3
+    paths:
+      - "english_app/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 서버 배포 (SSH)
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          timeout: 120s
+          script: |
+            bash ~/Surver_test/english_app/deploy.sh
