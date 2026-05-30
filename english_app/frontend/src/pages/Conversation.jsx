@@ -114,30 +114,48 @@ export default function Conversation() {
   }
 
   if (!selectedTopic) {
+    const toeicTopics = TOPICS.filter(t => t.toeic)
+    const generalTopics = TOPICS.filter(t => !t.toeic)
+
+    const TopicCard = ({ topic }) => (
+      <button
+        key={topic.key}
+        onClick={() => handleTopicSelect(topic)}
+        className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-indigo-300 p-4 text-left transition active:scale-95"
+      >
+        <div className="text-3xl mb-2">{topic.emoji}</div>
+        <h2 className="text-[15px] font-bold text-gray-800 mb-0.5">{topic.label}</h2>
+        <p className="text-xs text-gray-500 leading-relaxed">{topic.desc}</p>
+      </button>
+    )
+
     return (
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <div className="text-center mb-8">
-          <div className="text-5xl mb-3">💬</div>
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">AI 회화 연습</h1>
-          <p className="text-gray-500">주제를 선택하고 영어 대화를 연습해보세요.</p>
-          {profile && (
-            <p className="text-sm text-indigo-600 mt-1">현재 레벨: {levelCode}</p>
-          )}
+      <div className="max-w-2xl mx-auto px-4 py-6">
+        <div className="mb-5">
+          <h1 className="text-xl font-bold text-gray-900">AI 회화 연습 💬</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            주제를 선택하고 영어 대화를 연습해보세요.
+            {profile && <span className="ml-1 text-indigo-600 font-semibold">({levelCode})</span>}
+          </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          {TOPICS.map(topic => (
-            <button
-              key={topic.key}
-              onClick={() => handleTopicSelect(topic)}
-              className="bg-white rounded-2xl shadow-sm border-2 border-gray-100 hover:border-indigo-400 p-6 text-left transition hover:shadow-md"
-            >
-              <div className="text-4xl mb-3">{topic.emoji}</div>
-              <h2 className="text-lg font-bold text-gray-800 mb-1">{topic.label}</h2>
-              <p className="text-sm text-gray-500">{topic.desc}</p>
-            </button>
-          ))}
-        </div>
+        {learningMode === 'toeic_speaking' && toeicTopics.length > 0 && (
+          <>
+            <p className="text-xs font-bold text-rose-500 uppercase tracking-wider mb-2">TOEIC Speaking 유형별</p>
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              {toeicTopics.map(t => <TopicCard key={t.key} topic={t} />)}
+            </div>
+            {generalTopics.length > 0 && (
+              <p className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-2">비즈니스 회화</p>
+            )}
+          </>
+        )}
+
+        {generalTopics.length > 0 && (
+          <div className="grid grid-cols-2 gap-3">
+            {generalTopics.map(t => <TopicCard key={t.key} topic={t} />)}
+          </div>
+        )}
       </div>
     )
   }

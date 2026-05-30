@@ -2,8 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Card flip */
 .card-flip { perspective: 1000px; }
 .card-inner { transform-style: preserve-3d; transition: transform 0.55s; }
 .card-inner.flipped { transform: rotateY(180deg); }
 .card-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 .card-back { transform: rotateY(180deg); }
+
+/* Font rendering */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* iOS safe area for bottom nav */
+.pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0px); }

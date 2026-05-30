@@ -42,16 +42,18 @@ export default function App() {
       <BrowserRouter>
         <div className="min-h-screen bg-slate-50">
           <NavBar />
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/level-test" element={<LevelTest />} />
-            <Route path="/vocab" element={<VocabStudy />} />
-            <Route path="/quiz" element={<QuizPage />} />
-            <Route path="/conversation" element={<Conversation />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/wrong-note" element={<WrongNote />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <main className="pb-20 md:pb-0">
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/level-test" element={<LevelTest />} />
+              <Route path="/vocab" element={<VocabStudy />} />
+              <Route path="/quiz" element={<QuizPage />} />
+              <Route path="/conversation" element={<Conversation />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/wrong-note" element={<WrongNote />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
         </div>
       </BrowserRouter>
     </ProfileContext.Provider>
