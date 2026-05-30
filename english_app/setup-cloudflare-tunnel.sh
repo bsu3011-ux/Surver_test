@@ -36,6 +36,9 @@ if [ -z "$TUNNEL_TOKEN" ]; then
   exit 1
 fi
 
+# 전체 명령어를 붙여넣었을 경우 토큰만 추출 + 공백/개행 제거
+TUNNEL_TOKEN=$(echo "$TUNNEL_TOKEN" | sed 's/.*service install[[:space:]]*//' | tr -d '[:space:]')
+
 # 3. systemd 서비스로 설치
 echo ""
 echo "[3/3] systemd 서비스 설치 중..."
