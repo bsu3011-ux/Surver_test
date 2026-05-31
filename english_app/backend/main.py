@@ -561,22 +561,30 @@ def conversation_message(body: ConversationRequest):
     topic_desc = TOPICS.get(body.topic, TOPICS["daily"])
     level_guidance = LEVEL_GUIDANCE.get(body.level_code, LEVEL_GUIDANCE["B1"])
 
-    system_prompt = f"""You are an English conversation partner for a Korean learner.
+    system_prompt = f"""You are an English speaking coach for a Korean learner.
 Level: {body.level_code} — {level_guidance}
 Topic: {topic_desc}
 
-Rules:
-1. Respond naturally in English (2-4 sentences max)
-2. Check the user's LAST message for grammar/spelling errors
-3. Return ONLY a JSON object with this exact structure:
-{{"reply": "Your English response", "correction": {{"has_error": false, "original": null, "corrected": null, "explanation": null}}}}
+For every user message, do three things:
+1. REPLY naturally in English (2-3 sentences, conversational tone).
+2. GRAMMAR CHECK: detect any grammar, vocabulary, or expression error in the user's last message.
+3. PRONUNCIATION TIP: pick up to 2 words from the user's last message that Korean speakers commonly mispronounce (focus on: th/f/v sounds, r vs l, word stress, vowel length, silent letters). Only flag words the user actually wrote. Skip if no notable issues.
 
-If there is an error:
-{{"reply": "Your English response", "correction": {{"has_error": true, "original": "what they wrote incorrectly", "corrected": "the correct version", "explanation": "한국어로 간단히 설명"}}}}"""
+Return ONLY valid JSON — no markdown, no explanation outside JSON:
+{{"reply":"...","correction":{{"has_error":false,"original":null,"corrected":null,"explanation":null}},"pronunciation":{{"has_tip":false,"words":[]}}}}
+
+Grammar error example:
+{{"reply":"...","correction":{{"has_error":true,"original":"I am very interest in","corrected":"I am very interested in","explanation":"감정 형용사는 -ed형: interested (관심 있는)"}},"pronunciation":{{"has_tip":false,"words":[]}}}}
+
+Pronunciation tip example:
+{{"reply":"...","correction":{{"has_error":false,"original":null,"corrected":null,"explanation":null}},"pronunciation":{{"has_tip":true,"words":[{{"word":"thoroughly","ipa":"/ˈθʌr.ə.li/","tip":"th는 혀끝을 윗니에 살짝 대고 바람 — '덜리'가 아닌 'θʌrəli'"}}]}}}}"""
 
     groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     messages = [{"role": "system", "content": system_prompt}]
     messages += [{"role": m.role, "content": m.content} for m in body.messages]
+
+    empty_pronunciation = {"has_tip": False, "words": []}
+    empty_correction = {"has_error": False, "original": None, "corrected": None, "explanation": None}
 
     try:
         response = groq_client.chat.completions.create(
@@ -585,24 +593,19 @@ If there is an error:
             max_tokens=1024,
         )
         raw = response.choices[0].message.content.strip()
-
-        # Strip markdown code fences if present
         if raw.startswith("```"):
-            lines = raw.split("\n")
-            lines = [l for l in lines if not l.startswith("```")]
-            raw = "\n".join(lines).strip()
+            raw = "\n".join(l for l in raw.split("\n") if not l.startswith("```")).strip()
 
         parsed = json.loads(raw)
+        # 누락 필드 보완
+        parsed.setdefault("correction", empty_correction)
+        parsed.setdefault("pronunciation", empty_pronunciation)
         return parsed
     except json.JSONDecodeError:
         return {
-            "reply": raw if "raw" in dir() else "Sorry, I couldn't generate a response.",
-            "correction": {
-                "has_error": False,
-                "original": None,
-                "corrected": None,
-                "explanation": None,
-            },
+            "reply": raw if "raw" in locals() else "Sorry, I couldn't generate a response.",
+            "correction": empty_correction,
+            "pronunciation": empty_pronunciation,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

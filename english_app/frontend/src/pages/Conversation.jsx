@@ -3,30 +3,33 @@ import { post } from '../api.js'
 import { ProfileContext } from '../App.jsx'
 
 const ALL_TOPICS = [
-  { key: 'daily',           label: '일상 대화',      emoji: '☀️', desc: '인사, 취미, 날씨, 일상 활동',               toeic: false },
-  { key: 'travel',          label: '여행',            emoji: '✈️', desc: '호텔 예약, 길 찾기, 식당, 관광',           toeic: false },
-  { key: 'business',        label: '비즈니스',        emoji: '💼', desc: '이메일, 회의, 프레젠테이션, 협상',         toeic: false },
-  { key: 'interview',       label: '취업 면접',       emoji: '🎯', desc: '자기소개, 장단점, 커리어 목표',            toeic: false },
-  { key: 'toeic_picture',   label: '사진 묘사',       emoji: '🖼️', desc: 'TOEIC Speaking Part 1 — 사진 속 상황 묘사', toeic: true },
-  { key: 'toeic_opinion',   label: '의견 표현',       emoji: '💡', desc: 'TOEIC Speaking Part 5 — 찬반 의견 + 이유 2가지', toeic: true },
-  { key: 'toeic_solution',  label: '문제 해결 제안',  emoji: '🔧', desc: 'TOEIC Speaking Part 4 — 불만 메시지에 해결책 제안', toeic: true },
-  { key: 'toeic_respond',   label: '질문 응답',       emoji: '🎙️', desc: 'TOEIC Speaking Part 3 — 인터뷰·설문 답변 연습', toeic: true },
+  { key: 'daily',          label: '일상 대화',     emoji: '☀️', desc: '인사, 취미, 날씨, 일상 활동',                  toeic: false },
+  { key: 'travel',         label: '여행',           emoji: '✈️', desc: '호텔 예약, 길 찾기, 식당, 관광',              toeic: false },
+  { key: 'business',       label: '비즈니스',       emoji: '💼', desc: '이메일, 회의, 프레젠테이션, 협상',            toeic: false },
+  { key: 'interview',      label: '취업 면접',      emoji: '🎯', desc: '자기소개, 장단점, 커리어 목표',               toeic: false },
+  { key: 'toeic_picture',  label: '사진 묘사',      emoji: '🖼️', desc: 'TOEIC Speaking Part 1 — 사진 속 상황 묘사',  toeic: true  },
+  { key: 'toeic_opinion',  label: '의견 표현',      emoji: '💡', desc: 'TOEIC Speaking Part 5 — 찬반 의견 + 이유 2가지', toeic: true },
+  { key: 'toeic_solution', label: '문제 해결 제안', emoji: '🔧', desc: 'TOEIC Speaking Part 4 — 해결책 제안',         toeic: true  },
+  { key: 'toeic_respond',  label: '질문 응답',      emoji: '🎙️', desc: 'TOEIC Speaking Part 3 — 인터뷰·설문 답변',   toeic: true  },
 ]
 
 const GREETINGS = {
   daily:          "Hi there! How's your day going? Let's chat about everyday life!",
   travel:         "Hello! Are you planning a trip somewhere? I'd love to help you practice travel English!",
-  business:       "Good day! Let's practice some professional English for the workplace. How can I help you?",
+  business:       "Good day! Let's practice professional English for the workplace. How can I help you?",
   interview:      "Welcome! I'll be your interviewer today. Please start by introducing yourself briefly.",
-  toeic_picture:  "Let's practice TOEIC Speaking Part 1 — Picture Description! I'll describe a scene and you try to describe it too, or I'll give you feedback on your description. Ready? Describe this: 'A woman is working at her desk in a busy open-plan office.'",
-  toeic_opinion:  "Let's practice TOEIC Speaking Part 5 — Express an Opinion! I'll give you a topic and you should state your opinion clearly with at least TWO reasons. Ready? Topic: 'Do you think working from home is more productive than working in an office?'",
-  toeic_solution: "Let's practice TOEIC Speaking Part 4 — Propose a Solution! Here's the situation: 'You received a voicemail from a customer named Mr. Kim. He ordered a laptop two weeks ago but it hasn't arrived yet, and he has an important meeting tomorrow.' Please respond and propose a solution.",
-  toeic_respond:  "Let's practice TOEIC Speaking Part 3 — Respond to Questions! Imagine you are being interviewed about your work habits. Question 1: How many hours a day do you usually spend working, and what time do you typically start your workday?",
+  toeic_picture:  "Let's practice TOEIC Speaking Part 1 — Picture Description! Describe this scene: 'A woman is working at her desk in a busy open-plan office.'",
+  toeic_opinion:  "Let's practice TOEIC Speaking Part 5 — Express an Opinion! Topic: 'Do you think working from home is more productive than working in an office?' State your opinion with TWO reasons.",
+  toeic_solution: "Let's practice TOEIC Speaking Part 4! Situation: 'A customer named Mr. Kim ordered a laptop two weeks ago but it hasn't arrived. He has an important meeting tomorrow.' Please respond and propose a solution.",
+  toeic_respond:  "Let's practice TOEIC Speaking Part 3! Imagine you're being interviewed about work habits. Question 1: How many hours a day do you usually work, and what time do you typically start?",
 }
+
+// Web Speech API — Chrome/Android 지원, iOS Safari 미지원
+const getSR = () => window.SpeechRecognition || window.webkitSpeechRecognition
 
 export default function Conversation() {
   const { profile } = useContext(ProfileContext)
-  const levelCode = profile?.level_code || 'B1'
+  const levelCode    = profile?.level_code    || 'B1'
   const learningMode = profile?.learning_mode || 'general'
 
   const TOPICS = learningMode === 'toeic_speaking'
@@ -34,41 +37,90 @@ export default function Conversation() {
     : ALL_TOPICS.filter(t => !t.toeic)
 
   const [selectedTopic, setSelectedTopic] = useState(null)
-  const [messages, setMessages] = useState([])
-  const [inputText, setInputText] = useState('')
-  const [loading, setLoading] = useState(false)
-  const messagesEndRef = useRef(null)
-  const inputRef = useRef(null)
+  const [messages,      setMessages]      = useState([])
+  const [inputText,     setInputText]     = useState('')
+  const [interimText,   setInterimText]   = useState('')  // 실시간 음성 인식 중간 결과
+  const [loading,       setLoading]       = useState(false)
+  const [isRecording,   setIsRecording]   = useState(false)
+  const [srSupported,   setSrSupported]   = useState(false)
+
+  const messagesEndRef  = useRef(null)
+  const inputRef        = useRef(null)
+  const recognitionRef  = useRef(null)
 
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
-    }
-  }, [messages, loading])
+    setSrSupported(!!getSR())
+    return () => recognitionRef.current?.stop()
+  }, [])
 
-  const handleTopicSelect = (topic) => {
-    setSelectedTopic(topic.key)
-    setMessages([
-      {
-        role: 'assistant',
-        content: GREETINGS[topic.key],
-        correction: null,
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, loading, interimText])
+
+  // ── 마이크 토글 ───────────────────────────────────────────────
+  const toggleRecording = () => {
+    if (isRecording) {
+      recognitionRef.current?.stop()
+      return
+    }
+
+    const SR = getSR()
+    if (!SR) return
+
+    const r = new SR()
+    r.lang = 'en-US'
+    r.interimResults = true
+    r.continuous = false
+
+    r.onstart = () => setIsRecording(true)
+
+    r.onresult = (e) => {
+      let finalText = ''
+      let interimT  = ''
+      for (let i = 0; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript
+        if (e.results[i].isFinal) finalText += t
+        else interimT += t
       }
-    ])
-    setInputText('')
+      if (finalText) {
+        setInputText(prev => (prev ? prev + ' ' : '') + finalText.trim())
+        setInterimText('')
+      } else {
+        setInterimText(interimT)
+      }
+    }
+
+    r.onend = () => { setIsRecording(false); setInterimText('') }
+
+    r.onerror = (ev) => {
+      setIsRecording(false)
+      setInterimText('')
+      if (ev.error === 'not-allowed') alert('마이크 사용 권한을 허용해주세요.')
+    }
+
+    recognitionRef.current = r
+    r.start()
   }
 
+  // ── 주제 선택 ─────────────────────────────────────────────────
+  const handleTopicSelect = (topic) => {
+    setSelectedTopic(topic.key)
+    setMessages([{ role: 'assistant', content: GREETINGS[topic.key], correction: null, pronunciation: null }])
+    setInputText('')
+    setInterimText('')
+  }
+
+  // ── 메시지 전송 ───────────────────────────────────────────────
   const handleSend = async () => {
     const text = inputText.trim()
     if (!text || loading) return
 
-    const userMessage = { role: 'user', content: text, correction: null }
-    const newMessages = [...messages, userMessage]
+    const userMsg    = { role: 'user', content: text, correction: null, pronunciation: null }
+    const newMessages = [...messages, userMsg]
     setMessages(newMessages)
     setInputText('')
     setLoading(true)
 
-    // Build API messages (without correction field)
     const apiMessages = newMessages.map(m => ({ role: m.role, content: m.content }))
 
     try {
@@ -78,27 +130,19 @@ export default function Conversation() {
         level_code: levelCode,
       })
 
-      // Attach correction to the user message
-      const updatedMessages = newMessages.map((m, i) => {
-        if (i === newMessages.length - 1 && m.role === 'user') {
-          return { ...m, correction: data.correction }
-        }
-        return m
-      })
-
-      // Add assistant reply
-      updatedMessages.push({
-        role: 'assistant',
-        content: data.reply || '...',
-        correction: null,
-      })
-
-      setMessages(updatedMessages)
-    } catch (err) {
+      // 교정·발음 피드백을 유저 메시지에 붙임
+      const updated = newMessages.map((m, i) =>
+        i === newMessages.length - 1 && m.role === 'user'
+          ? { ...m, correction: data.correction, pronunciation: data.pronunciation }
+          : m
+      )
+      updated.push({ role: 'assistant', content: data.reply || '...', correction: null, pronunciation: null })
+      setMessages(updated)
+    } catch {
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: '죄송합니다, 오류가 발생했습니다. 다시 시도해주세요.',
-        correction: null,
+        correction: null, pronunciation: null,
       }])
     } finally {
       setLoading(false)
@@ -107,19 +151,16 @@ export default function Conversation() {
   }
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }
 
+  // ── 주제 선택 화면 ────────────────────────────────────────────
   if (!selectedTopic) {
-    const toeicTopics = TOPICS.filter(t => t.toeic)
+    const toeicTopics   = TOPICS.filter(t => t.toeic)
     const generalTopics = TOPICS.filter(t => !t.toeic)
 
     const TopicCard = ({ topic }) => (
       <button
-        key={topic.key}
         onClick={() => handleTopicSelect(topic)}
         className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-indigo-300 p-4 text-left transition active:scale-95"
       >
@@ -131,12 +172,21 @@ export default function Conversation() {
 
     return (
       <div className="max-w-2xl mx-auto px-4 py-6">
-        <div className="mb-5">
-          <h1 className="text-xl font-bold text-gray-900">AI 회화 연습 💬</h1>
+        <div className="mb-4">
+          <h1 className="text-xl font-bold text-gray-900">AI 스피킹 코치 🎙️</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            주제를 선택하고 영어 대화를 연습해보세요.
+            주제를 선택하고 영어로 말해보세요. 발음·문법을 실시간으로 교정해 드립니다.
             {profile && <span className="ml-1 text-indigo-600 font-semibold">({levelCode})</span>}
           </p>
+          {srSupported ? (
+            <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-3 py-1">
+              <span>🎤</span> 마이크 음성 입력 지원
+            </div>
+          ) : (
+            <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-full px-3 py-1">
+              <span>⌨️</span> 텍스트 입력 (이 브라우저는 음성 미지원)
+            </div>
+          )}
         </div>
 
         {learningMode === 'toeic_speaking' && toeicTopics.length > 0 && (
@@ -150,7 +200,6 @@ export default function Conversation() {
             )}
           </>
         )}
-
         {generalTopics.length > 0 && (
           <div className="grid grid-cols-2 gap-3">
             {generalTopics.map(t => <TopicCard key={t.key} topic={t} />)}
@@ -162,50 +211,73 @@ export default function Conversation() {
 
   const topicInfo = ALL_TOPICS.find(t => t.key === selectedTopic)
 
+  // ── 채팅 화면 ─────────────────────────────────────────────────
   return (
     <div className="max-w-2xl mx-auto px-4 py-4 flex flex-col" style={{ height: 'calc(100vh - 80px)' }}>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4 shrink-0">
+
+      {/* 헤더 */}
+      <div className="flex items-center justify-between mb-3 shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-2xl">{topicInfo?.emoji}</span>
           <h1 className="text-lg font-bold text-gray-800">{topicInfo?.label}</h1>
           <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">{levelCode}</span>
         </div>
         <button
-          onClick={() => { setSelectedTopic(null); setMessages([]) }}
+          onClick={() => { setSelectedTopic(null); setMessages([]); setInputText(''); setInterimText('') }}
           className="text-sm text-gray-500 hover:text-indigo-600 border border-gray-200 px-3 py-1.5 rounded-lg hover:border-indigo-300 transition"
         >
           주제 변경
         </button>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4 space-y-4">
+      {/* 메시지 영역 */}
+      <div className="flex-1 overflow-y-auto bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-3 space-y-4">
         {messages.map((msg, idx) => (
           <div key={idx}>
             {msg.role === 'user' ? (
               <div className="flex flex-col items-end gap-1">
-                <div className="max-w-xs lg:max-w-md">
+                <div className="max-w-[80%]">
+                  {/* 사용자 말풍선 */}
                   <div className="bg-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed">
                     {msg.content}
                   </div>
+
+                  {/* 문법 교정 */}
                   {msg.correction?.has_error && (
-                    <div className="mt-1 bg-yellow-50 border border-yellow-200 rounded-xl px-3 py-2 text-xs">
-                      <div className="font-semibold text-yellow-800 mb-1">✏️ 수정 제안</div>
-                      <div className="text-red-600 line-through">{msg.correction.original}</div>
-                      <div className="text-green-700 font-medium">→ {msg.correction.corrected}</div>
+                    <div className="mt-1.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs">
+                      <div className="font-semibold text-amber-700 mb-1">✏️ 문법 교정</div>
+                      <div className="text-red-500 line-through mb-0.5">{msg.correction.original}</div>
+                      <div className="text-green-700 font-semibold">→ {msg.correction.corrected}</div>
                       {msg.correction.explanation && (
-                        <div className="text-gray-600 mt-1">{msg.correction.explanation}</div>
+                        <div className="text-gray-600 mt-1 leading-relaxed">{msg.correction.explanation}</div>
                       )}
+                    </div>
+                  )}
+
+                  {/* 발음 피드백 */}
+                  {msg.pronunciation?.has_tip && msg.pronunciation.words?.length > 0 && (
+                    <div className="mt-1.5 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 text-xs">
+                      <div className="font-semibold text-blue-700 mb-1.5">🗣️ 발음 교정</div>
+                      <div className="space-y-2">
+                        {msg.pronunciation.words.map((pw, i) => (
+                          <div key={i} className="leading-relaxed">
+                            <span className="font-bold text-blue-800 bg-blue-100 px-1.5 py-0.5 rounded">{pw.word}</span>
+                            {pw.ipa && (
+                              <span className="text-blue-500 font-mono ml-1.5">{pw.ipa}</span>
+                            )}
+                            <div className="text-gray-700 mt-0.5">{pw.tip}</div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
             ) : (
               <div className="flex flex-col items-start">
-                <div className="max-w-xs lg:max-w-md">
+                <div className="max-w-[80%]">
                   <div className="flex items-center gap-1 mb-1">
-                    <span className="text-xs text-gray-400">AI</span>
+                    <span className="text-xs font-semibold text-indigo-400">AI 코치</span>
                   </div>
                   <div className="bg-gray-100 text-gray-800 rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed">
                     {msg.content}
@@ -216,40 +288,73 @@ export default function Conversation() {
           </div>
         ))}
 
+        {/* AI 응답 대기 */}
         {loading && (
           <div className="flex items-start">
             <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3">
               <div className="flex gap-1">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                {[0, 150, 300].map(delay => (
+                  <div key={delay} className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                    style={{ animationDelay: `${delay}ms` }} />
+                ))}
               </div>
             </div>
           </div>
         )}
 
-        <div ref={messagesEndRef}></div>
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div className="flex gap-3 shrink-0">
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputText}
-          onChange={e => setInputText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={loading}
-          placeholder="영어로 메시지를 입력하세요..."
-          className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:bg-gray-50"
-        />
-        <button
-          onClick={handleSend}
-          disabled={!inputText.trim() || loading}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-3 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          보내기
-        </button>
+      {/* 입력 영역 */}
+      <div className="shrink-0 space-y-2">
+        {/* 음성 인식 중 미리보기 */}
+        {(isRecording || interimText) && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+            <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse shrink-0" />
+            <span className="text-sm text-red-700 italic flex-1 min-h-[20px]">
+              {interimText || '듣고 있어요...'}
+            </span>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          {/* 마이크 버튼 */}
+          {srSupported && (
+            <button
+              onClick={toggleRecording}
+              disabled={loading}
+              title={isRecording ? '녹음 중단' : '음성 입력'}
+              className={`shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-xl transition
+                ${isRecording
+                  ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-200'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                } disabled:opacity-40`}
+            >
+              {isRecording ? '⏹' : '🎤'}
+            </button>
+          )}
+
+          {/* 텍스트 입력 */}
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputText}
+            onChange={e => setInputText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={loading}
+            placeholder={isRecording ? '음성으로 입력 중...' : '영어로 말하거나 입력하세요...'}
+            className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:bg-gray-50"
+          />
+
+          {/* 전송 버튼 */}
+          <button
+            onClick={handleSend}
+            disabled={!inputText.trim() || loading}
+            className="shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-3 rounded-xl transition disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            전송
+          </button>
+        </div>
       </div>
     </div>
   )
