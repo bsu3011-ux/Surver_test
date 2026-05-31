@@ -243,7 +243,7 @@ def get_today_vocab():
 - example_ko: Korean translation of the example sentence
 - tip: a brief memory tip or usage note in Korean (can be empty string if none)
 
-Return only the JSON array, nothing else."""
+Return only the JSON array, nothing else. All Korean text must use ONLY Hangul (한글). Do NOT use any Chinese characters (漢字/한자) in any field."""
 
         response = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
