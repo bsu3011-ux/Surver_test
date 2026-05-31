@@ -16,14 +16,20 @@ export default function LevelTest() {
   const [finished, setFinished] = useState(false)
   const [result, setResult] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState(null)
 
-  useEffect(() => {
+  const loadQuestions = () => {
+    setLoading(true)
     get('/level-test/questions')
       .then(data => {
-        setQuestions(data)
+        setQuestions(Array.isArray(data) ? data : [])
         setLoading(false)
       })
       .catch(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadQuestions()
   }, [])
 
   const handleOptionClick = (optionIndex) => {
@@ -50,13 +56,16 @@ export default function LevelTest() {
 
   const submitTest = async (finalAnswers) => {
     setSubmitting(true)
+    setSubmitError(null)
     try {
       const data = await post('/level-test/submit', { answers: finalAnswers })
+      if (data?.detail) throw new Error(data.detail)
       setResult(data)
       setProfile({ ...data, exists: true })
       setFinished(true)
     } catch (err) {
       console.error('Submit error:', err)
+      setSubmitError('결과 제출에 실패했습니다. 다시 시도해주세요.')
     } finally {
       setSubmitting(false)
     }
@@ -75,6 +84,21 @@ export default function LevelTest() {
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-600 border-t-transparent mx-auto mb-4"></div>
         <p className="text-gray-600">결과를 분석 중입니다...</p>
+      </div>
+    )
+  }
+
+  if (submitError) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <div className="text-5xl mb-4">⚠️</div>
+        <p className="text-gray-600 mb-6">{submitError}</p>
+        <button
+          onClick={() => submitTest(answers)}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-8 rounded-xl transition"
+        >
+          🔄 다시 제출
+        </button>
       </div>
     )
   }
@@ -112,8 +136,15 @@ export default function LevelTest() {
 
   if (questions.length === 0) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-16 text-center text-gray-500">
-        문제를 불러올 수 없습니다.
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <div className="text-5xl mb-4">⚠️</div>
+        <p className="text-gray-500 mb-6">문제를 불러올 수 없습니다.</p>
+        <button
+          onClick={loadQuestions}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-8 rounded-xl transition"
+        >
+          🔄 다시 시도
+        </button>
       </div>
     )
   }

@@ -4,11 +4,16 @@ import { get, post } from '../api.js'
 import { ProfileContext } from '../App.jsx'
 
 const speak = (text) => {
-  window.speechSynthesis.cancel()
-  const u = new SpeechSynthesisUtterance(text)
-  u.lang = 'en-US'
-  u.rate = 0.85
-  window.speechSynthesis.speak(u)
+  if (typeof window === 'undefined' || !window.speechSynthesis) return
+  try {
+    window.speechSynthesis.cancel()
+    const u = new SpeechSynthesisUtterance(text)
+    u.lang = 'en-US'
+    u.rate = 0.85
+    window.speechSynthesis.speak(u)
+  } catch {
+    // 음성 합성 미지원 브라우저 — 무시
+  }
 }
 
 export default function VocabStudy() {
@@ -23,7 +28,9 @@ export default function VocabStudy() {
   const [completed, setCompleted] = useState(false)
   const [dateInfo, setDateInfo] = useState(null)
 
-  useEffect(() => {
+  const loadWords = () => {
+    setLoading(true)
+    setError(null)
     get('/vocab/today')
       .then(data => {
         if (data.detail) {
@@ -35,15 +42,24 @@ export default function VocabStudy() {
         setLoading(false)
       })
       .catch(() => {
-        setError('단어를 불러오는 데 실패했습니다.')
+        setError('단어를 불러오는 데 실패했습니다. 잠시 후 다시 시도해주세요.')
         setLoading(false)
       })
+  }
+
+  useEffect(() => {
+    loadWords()
   }, [])
 
   const handleMark = async (correct) => {
     if (words.length === 0) return
     const word = words[currentIndex]
-    await post('/vocab/mark', { word_id: word.id, correct })
+    // 마킹 실패해도 학습 흐름은 끊기지 않도록 한다.
+    try {
+      await post('/vocab/mark', { word_id: word.id, correct })
+    } catch {
+      // 기록 실패는 무시하고 진행
+    }
 
     if (currentIndex + 1 >= words.length) {
       setCompleted(true)
@@ -71,24 +87,36 @@ export default function VocabStudy() {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 flex flex-col items-center gap-4">
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-600 border-t-transparent"></div>
-        <p className="text-gray-500">오늘의 단어를 불러오는 중... (AI가 단어를 생성 중일 수 있습니다)</p>
+        <p className="text-gray-500 text-center">오늘의 단어를 불러오는 중...</p>
+        <p className="text-gray-400 text-sm text-center">AI가 단어를 생성하는 첫 로딩은 30초 정도 걸릴 수 있어요</p>
       </div>
     )
   }
 
   if (error || !profile) {
+    // 프로필은 있는데 단어 로딩이 실패한 경우 → 재시도 버튼 제공
+    const canRetry = !!profile && !!error
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
         <div className="text-5xl mb-4">⚠️</div>
         <h2 className="text-xl font-bold text-gray-700 mb-3">
           {error || '레벨 테스트를 먼저 진행해주세요.'}
         </h2>
-        <Link
-          to="/level-test"
-          className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-xl transition mt-4"
-        >
-          레벨 테스트 하기
-        </Link>
+        {canRetry ? (
+          <button
+            onClick={loadWords}
+            className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-xl transition mt-4"
+          >
+            🔄 다시 시도
+          </button>
+        ) : (
+          <Link
+            to="/level-test"
+            className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-xl transition mt-4"
+          >
+            레벨 테스트 하기
+          </Link>
+        )}
       </div>
     )
   }

@@ -52,13 +52,23 @@ export default function WrongNote() {
   const { profile } = useContext(ProfileContext)
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [tab, setTab] = useState('wrong')
 
-  useEffect(() => {
+  const loadStats = () => {
+    setLoading(true)
+    setError(null)
     get('/vocab/stats')
-      .then(setData)
-      .catch(() => {})
+      .then(d => {
+        if (d?.detail) setError(d.detail)
+        else setData(d)
+      })
+      .catch(() => setError('데이터를 불러올 수 없습니다.'))
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadStats()
   }, [])
 
   if (!profile) {
@@ -77,6 +87,21 @@ export default function WrongNote() {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 flex justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-600 border-t-transparent"></div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <div className="text-5xl mb-4">⚠️</div>
+        <p className="text-gray-500 mb-6">{error}</p>
+        <button
+          onClick={loadStats}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-8 rounded-xl transition"
+        >
+          🔄 다시 시도
+        </button>
       </div>
     )
   }

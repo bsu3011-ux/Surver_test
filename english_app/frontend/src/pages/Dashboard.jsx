@@ -26,7 +26,7 @@ const LEVEL_BG = {
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const { profile } = useContext(ProfileContext)
+  const { profile, setProfile } = useContext(ProfileContext)
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -38,17 +38,21 @@ export default function Dashboard() {
     if (newMode === currentMode || modeChanging) return
     setModeChanging(true)
     try {
-      await post('/profile/learning-mode', { learning_mode: newMode })
-      // Refresh profile in context
-      window.location.reload()
+      const data = await post('/profile/learning-mode', { learning_mode: newMode })
+      if (data?.detail) throw new Error(data.detail)
+      // 전체 새로고침 대신 컨텍스트만 갱신
+      setProfile(prev => ({ ...prev, learning_mode: newMode }))
     } catch (e) {
       console.error(e)
+      alert('학습 모드 변경에 실패했습니다. 다시 시도해주세요.')
     } finally {
       setModeChanging(false)
     }
   }
 
-  useEffect(() => {
+  const loadStats = () => {
+    setLoading(true)
+    setError(null)
     get('/dashboard')
       .then(data => {
         if (data.detail) {
@@ -62,6 +66,10 @@ export default function Dashboard() {
         setError('데이터를 불러올 수 없습니다.')
         setLoading(false)
       })
+  }
+
+  useEffect(() => {
+    loadStats()
   }, [])
 
   if (!profile) {
@@ -89,8 +97,15 @@ export default function Dashboard() {
 
   if (error || !stats) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-16 text-center text-gray-500">
-        {error || '데이터가 없습니다.'}
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <div className="text-5xl mb-4">⚠️</div>
+        <p className="text-gray-500 mb-4">{error || '데이터가 없습니다.'}</p>
+        <button
+          onClick={loadStats}
+          className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-xl transition"
+        >
+          🔄 다시 시도
+        </button>
       </div>
     )
   }

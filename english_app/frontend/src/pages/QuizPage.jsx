@@ -67,10 +67,12 @@ export default function QuizPage() {
       setSubmitting(true)
       try {
         const data = await post('/quiz/submit', { results })
+        if (data?.detail) throw new Error(data.detail)
         setQuizResult(data)
         setFinished(true)
       } catch (err) {
         console.error('Submit error:', err)
+        alert('결과 저장에 실패했습니다. 다시 시도해주세요.')
       } finally {
         setSubmitting(false)
       }
@@ -108,13 +110,21 @@ export default function QuizPage() {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
         <div className="text-5xl mb-4">📚</div>
-        <h2 className="text-xl font-bold text-gray-700 mb-3">{error}</h2>
-        <Link
-          to="/vocab"
-          className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-xl transition"
-        >
-          단어 학습하러 가기
-        </Link>
+        <h2 className="text-xl font-bold text-gray-700 mb-5">{error}</h2>
+        <div className="flex flex-wrap justify-center gap-3">
+          <button
+            onClick={fetchQuestions}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-xl transition"
+          >
+            🔄 다시 시도
+          </button>
+          <Link
+            to="/vocab"
+            className="bg-white hover:bg-gray-50 text-indigo-600 border border-indigo-300 font-semibold py-3 px-6 rounded-xl transition"
+          >
+            단어 학습하러 가기
+          </Link>
+        </div>
       </div>
     )
   }
