@@ -246,7 +246,7 @@ def get_today_vocab():
 Return only the JSON array, nothing else. All Korean text must use ONLY Hangul (한글). Do NOT use any Chinese characters (漢字/한자) in any field."""
 
         response = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=8000,
         )
