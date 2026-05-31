@@ -17,19 +17,24 @@ git -C "$REPO_DIR" fetch origin
 git -C "$REPO_DIR" reset --hard "origin/$BRANCH"
 echo "      완료"
 
-# 2. 프론트엔드 빌드
-echo "[2/3] 프론트엔드 빌드 중..."
+# 2. Python 패키지 설치
+echo "[2/4] Python 패키지 설치 중..."
+pip install fastapi uvicorn google-generativeai python-dotenv requests -q
+echo "      완료"
+
+# 3. 프론트엔드 빌드
+echo "[3/4] 프론트엔드 빌드 중..."
 cd "$FRONTEND_DIR"
 npm install --silent
 npm run build
 echo "      완료"
 
-# 3. 서비스 재시작
-echo "[3/3] 서비스 재시작 중..."
+# 4. 서비스 재시작
+echo "[4/4] 서비스 재시작 중..."
 if systemctl is-active --quiet english-app 2>/dev/null; then
     sudo systemctl restart english-app
     sleep 2
-    systemctl is-active --quiet english-app && echo "      서비스 정상 실행 중" || echo "      ⚠️ 재시작 실패 — 로그: sudo journalctl -u english-app -n 30"
+    systemctl is-active --quiet english-app && echo "      서비스 정상 실행 중" || echo "      ⚠️ 재시작 실패. 로그: sudo journalctl -u english-app -n 30"
 else
     echo "      ⚠️ systemd 서비스 없음. setup-daemon.sh를 먼저 실행하세요."
     exit 1
