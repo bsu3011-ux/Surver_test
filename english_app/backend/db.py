@@ -1,7 +1,13 @@
+import re
 import sqlite3
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent / "data" / "app.db"
+
+_CJK_RE = re.compile(r'[぀-ヿ㐀-䶿一-鿿豈-﫿]')
+
+def _strip_cjk(text):
+    return _CJK_RE.sub('', text or '').strip()
 
 
 def get_conn() -> sqlite3.Connection:
@@ -66,4 +72,24 @@ def init_db():
     # daily_vocab_count를 30으로 업데이트
     cur.execute("UPDATE user_profile SET daily_vocab_count = 30 WHERE daily_vocab_count < 30")
     conn.commit()
+
+    # 기존 단어 중 CJK 문자(한자/일본어)가 섞인 것을 정리
+    rows = cur.execute(
+        "SELECT id, korean, example_ko, tip FROM vocab_words"
+    ).fetchall()
+    updated = 0
+    for row in rows:
+        rid, korean, example_ko, tip = row[0], row[1], row[2], row[3]
+        new_k  = _strip_cjk(korean)
+        new_ek = _strip_cjk(example_ko)
+        new_t  = _strip_cjk(tip)
+        if new_k != (korean or '') or new_ek != (example_ko or '') or new_t != (tip or ''):
+            cur.execute(
+                "UPDATE vocab_words SET korean=?, example_ko=?, tip=? WHERE id=?",
+                (new_k, new_ek, new_t, rid),
+            )
+            updated += 1
+    if updated:
+        conn.commit()
+
     conn.close()
