@@ -3,11 +3,36 @@ load_dotenv()
 
 import os
 import json
+import re
 import random
 import sqlite3
 import time
 from datetime import date, datetime, timedelta
 from typing import List, Optional
+
+# 히라가나·가타카나·CJK 한자(간체/번체/일본어) 탐지
+_CJK_RE = re.compile(r'[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]')
+
+def _has_cjk(text: str) -> bool:
+    return bool(_CJK_RE.search(text or ''))
+
+def _strip_cjk(text: str) -> str:
+    return _CJK_RE.sub('', text or '').strip()
+
+def _clean_words(words: list) -> list:
+    """Korean 필드에 남은 CJK 문자를 강제 제거한다."""
+    for w in words:
+        for field in ('korean', 'example_ko', 'tip'):
+            if _has_cjk(w.get(field, '')):
+                w[field] = _strip_cjk(w[field])
+    return words
+
+def _words_have_cjk(words: list) -> bool:
+    return any(
+        _has_cjk(w.get(f, ''))
+        for w in words
+        for f in ('korean', 'example_ko', 'tip')
+    )
 
 from groq import Groq
 import uvicorn
@@ -252,24 +277,37 @@ Vary the selection using today's date {date.today().isoformat()} as a seed. Each
 {excl}
 Select exactly {n} items. Return ONLY a valid JSON array — no markdown, no code fences, no explanation.
 Each object must have exactly these fields: type ("word" or "idiom"), english, pronunciation (IPA in /slashes/), korean, part_of_speech, example_en, example_ko, tip.
-CRITICAL RULES:
-- korean: accurate Korean meaning in Hangul only (NO Chinese characters 한자 금지). Must be correct dictionary meaning.
-- example_ko: natural Korean translation of example_en. Must match the English sentence meaning exactly.
-- tip: short Korean memory tip or "" if none.
+CRITICAL RULES — STRICTLY ENFORCED:
+- korean: Korean meaning in PURE HANGUL ONLY. Absolutely NO Chinese characters (漢字), NO Japanese characters (漢字/ひらがな/カタカナ). Write natural Korean like: "같은 생각을 가진", "흠잡을 데 없는", "모호한", "미루다".
+- example_ko: Pure Korean sentence. NO CJK characters at all. Translate example_en accurately.
+- tip: Korean only, or "" if no helpful tip.
+❌ WRONG examples (CJK contamination — NEVER output these): "마이너스一点도 없는", "同じ 생각을 가진", "徐々に"
+✅ CORRECT examples: "흠잡을 데 없는", "같은 생각을 가진", "서서히"
 
 Example of correct output format:
 {EXAMPLE_JSON}"""
 
-        def call_groq(prompt_text):
-            resp = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "user", "content": prompt_text}],
-                max_tokens=2000,
-            )
-            raw = resp.choices[0].message.content.strip()
+        def _parse_raw(raw: str) -> list:
+            raw = raw.strip()
             if raw.startswith("```"):
                 raw = "\n".join(l for l in raw.split("\n") if not l.startswith("```")).strip()
             return json.loads(raw)
+
+        def call_groq(prompt_text):
+            # CJK 감지 시 1회 자동 재시도, 그래도 남으면 강제 제거
+            for attempt in range(2):
+                resp = groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "user", "content": prompt_text}],
+                    max_tokens=2000,
+                )
+                result = _parse_raw(resp.choices[0].message.content)
+                if not _words_have_cjk(result):
+                    return result
+                if attempt == 0:
+                    time.sleep(3)  # 짧게 대기 후 재시도
+            # 재시도 후에도 CJK 남아 있으면 강제 제거
+            return _clean_words(result)
 
         # 10개씩 나눠서 요청 (llama-3.3-70b-versatile: 6000 TPM → sleep 12s between batches)
         batch = 10
