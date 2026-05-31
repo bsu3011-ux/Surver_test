@@ -21,7 +21,7 @@ if [ -f "../.env" ]; then
 fi
 
 echo "📦 백엔드 의존성 설치..."
-pip install fastapi uvicorn anthropic python-dotenv requests -q
+pip install fastapi uvicorn google-generativeai python-dotenv requests -q
 
 echo "📦 프론트엔드 빌드 (최초 1회는 시간이 걸립니다)..."
 cd frontend

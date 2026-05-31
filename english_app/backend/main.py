@@ -8,7 +8,7 @@ import sqlite3
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 
-import anthropic
+import google.generativeai as genai
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -213,9 +213,10 @@ def get_today_vocab():
                 "words": [dict(r) for r in rows],
             }
 
-        # Generate with Claude
+        # Generate with Gemini
         learning_mode = profile.get("learning_mode", "general")
-        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        gemini = genai.GenerativeModel("gemini-1.5-flash")
 
         if learning_mode == "toeic_speaking":
             mode_instruction = f"""TOEIC Speaking 시험 준비 학습자를 위한 어휘 {daily_count}개를 선정하세요.
@@ -245,13 +246,8 @@ def get_today_vocab():
 
 Return only the JSON array, nothing else."""
 
-        message = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=2048,
-            messages=[{"role": "user", "content": prompt}],
-        )
-
-        raw = message.content[0].text.strip()
+        response = gemini.generate_content(prompt)
+        raw = response.text.strip()
         # Strip markdown code fences if present
         if raw.startswith("```"):
             lines = raw.split("\n")
@@ -508,18 +504,20 @@ Rules:
 If there is an error:
 {{"reply": "Your English response", "correction": {{"has_error": true, "original": "what they wrote incorrectly", "corrected": "the correct version", "explanation": "한국어로 간단히 설명"}}}}"""
 
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+    gemini = genai.GenerativeModel("gemini-1.5-flash", system_instruction=system_prompt)
 
-    messages = [{"role": m.role, "content": m.content} for m in body.messages]
+    # Gemini uses "model" instead of "assistant"
+    history = []
+    for m in body.messages[:-1]:
+        role = "user" if m.role == "user" else "model"
+        history.append({"role": role, "parts": [m.content]})
+    last_msg = body.messages[-1].content
 
     try:
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=1024,
-            system=system_prompt,
-            messages=messages,
-        )
-        raw = response.content[0].text.strip()
+        chat = gemini.start_chat(history=history)
+        response = chat.send_message(last_msg)
+        raw = response.text.strip()
 
         # Strip markdown code fences if present
         if raw.startswith("```"):
