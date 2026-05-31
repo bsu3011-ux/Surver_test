@@ -5,6 +5,7 @@ import os
 import json
 import random
 import sqlite3
+import time
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 
@@ -242,19 +243,30 @@ All Korean text: Hangul only, NO Chinese characters (한자 금지)."""
             resp = groq_client.chat.completions.create(
                 model="llama-3.1-8b-instant",
                 messages=[{"role": "user", "content": prompt_text}],
-                max_tokens=4000,
+                max_tokens=2500,
             )
             raw = resp.choices[0].message.content.strip()
             if raw.startswith("```"):
                 raw = "\n".join(l for l in raw.split("\n") if not l.startswith("```")).strip()
             return json.loads(raw)
 
-        # 15개씩 두 번 나눠서 요청 (토큰 한도 초과 방지)
-        batch = 15
-        words_data = call_groq(build_prompt(batch))
-        used = [w.get("english", "") for w in words_data]
-        if daily_count > batch:
-            words_data += call_groq(build_prompt(daily_count - batch, exclude=used))
+        # 10개씩 나눠서 요청 (Korean text uses ~1.3 chars/token → 10 words ≈ 1500 tokens, well within 2500 limit)
+        batch = 10
+        words_data = []
+        remaining = daily_count
+        while remaining > 0:
+            n = min(batch, remaining)
+            used = [w.get("english", "") for w in words_data]
+            try:
+                chunk = call_groq(build_prompt(n, exclude=used if used else None))
+                words_data += chunk
+                remaining -= len(chunk)
+            except Exception as e:
+                if words_data:
+                    break  # 일부라도 있으면 진행
+                raise
+            if remaining > 0:
+                time.sleep(1.5)
 
         for w in words_data:
             conn.execute(
