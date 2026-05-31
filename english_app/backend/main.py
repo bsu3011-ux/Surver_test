@@ -230,35 +230,31 @@ def get_today_vocab():
             mode_instruction = f"""레벨 {level_code} 한국인 영어 학습자를 위한 단어와 숙어를 70:30 비율로 선정하세요.
 오늘 날짜({date.today().isoformat()})를 시드로 활용해 매일 다른 단어를 제공하세요."""
 
-        prompt = f"""{mode_instruction}
+        def build_prompt(n, exclude=None):
+            excl = f"\nDo NOT include these words: {', '.join(exclude)}." if exclude else ""
+            return f"""{mode_instruction}
 
-총 {daily_count}개를 선정하고, ONLY a JSON array (no markdown, no code fences)로 반환하세요.
-각 항목 필드:
-- type: "word" or "idiom"
-- english: the word or idiom
-- pronunciation: phonetic pronunciation (e.g. /prəˌnʌnsiˈeɪʃən/)
-- korean: Korean translation/meaning
-- part_of_speech: e.g. "noun", "verb", "adjective", "idiom", etc.
-- example_en: an example sentence in English
-- example_ko: Korean translation of the example sentence
-- tip: a brief memory tip or usage note in Korean (can be empty string if none)
+Select exactly {n} items.{excl} Return ONLY a JSON array (no markdown, no code fences).
+Each item fields: type ("word"/"idiom"), english, pronunciation (/ipa/), korean, part_of_speech, example_en, example_ko, tip (short Korean tip or "").
+All Korean text: Hangul only, NO Chinese characters (한자 금지)."""
 
-Return only the JSON array, nothing else. All Korean text must use ONLY Hangul (한글). Do NOT use any Chinese characters (漢字/한자) in any field."""
+        def call_groq(prompt_text):
+            resp = groq_client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[{"role": "user", "content": prompt_text}],
+                max_tokens=4000,
+            )
+            raw = resp.choices[0].message.content.strip()
+            if raw.startswith("```"):
+                raw = "\n".join(l for l in raw.split("\n") if not l.startswith("```")).strip()
+            return json.loads(raw)
 
-        response = groq_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=8000,
-        )
-        raw = response.choices[0].message.content.strip()
-        # Strip markdown code fences if present
-        if raw.startswith("```"):
-            lines = raw.split("\n")
-            # Remove first and last lines if they are code fences
-            lines = [l for l in lines if not l.startswith("```")]
-            raw = "\n".join(lines).strip()
-
-        words_data = json.loads(raw)
+        # 15개씩 두 번 나눠서 요청 (토큰 한도 초과 방지)
+        batch = 15
+        words_data = call_groq(build_prompt(batch))
+        used = [w.get("english", "") for w in words_data]
+        if daily_count > batch:
+            words_data += call_groq(build_prompt(daily_count - batch, exclude=used))
 
         for w in words_data:
             conn.execute(
