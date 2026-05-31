@@ -19,7 +19,7 @@ echo "      완료"
 
 # 2. Python 패키지 설치
 echo "[2/4] Python 패키지 설치 중..."
-pip install fastapi uvicorn google-generativeai python-dotenv requests -q
+pip install fastapi uvicorn groq python-dotenv requests -q
 echo "      완료"
 
 # 3. 프론트엔드 빌드

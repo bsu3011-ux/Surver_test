@@ -8,7 +8,7 @@ import sqlite3
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 
-import google.generativeai as genai
+from groq import Groq
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -213,10 +213,9 @@ def get_today_vocab():
                 "words": [dict(r) for r in rows],
             }
 
-        # Generate with Gemini
+        # Generate with Groq
         learning_mode = profile.get("learning_mode", "general")
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-        gemini = genai.GenerativeModel("gemini-2.0-flash-lite")
+        groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
         if learning_mode == "toeic_speaking":
             mode_instruction = f"""TOEIC Speaking 시험 준비 학습자를 위한 어휘 {daily_count}개를 선정하세요.
@@ -246,8 +245,12 @@ def get_today_vocab():
 
 Return only the JSON array, nothing else."""
 
-        response = gemini.generate_content(prompt)
-        raw = response.text.strip()
+        response = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=2048,
+        )
+        raw = response.choices[0].message.content.strip()
         # Strip markdown code fences if present
         if raw.startswith("```"):
             lines = raw.split("\n")
@@ -504,20 +507,17 @@ Rules:
 If there is an error:
 {{"reply": "Your English response", "correction": {{"has_error": true, "original": "what they wrote incorrectly", "corrected": "the correct version", "explanation": "한국어로 간단히 설명"}}}}"""
 
-    genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-    gemini = genai.GenerativeModel("gemini-2.0-flash-lite", system_instruction=system_prompt)
-
-    # Gemini uses "model" instead of "assistant"
-    history = []
-    for m in body.messages[:-1]:
-        role = "user" if m.role == "user" else "model"
-        history.append({"role": role, "parts": [m.content]})
-    last_msg = body.messages[-1].content
+    groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+    messages = [{"role": "system", "content": system_prompt}]
+    messages += [{"role": m.role, "content": m.content} for m in body.messages]
 
     try:
-        chat = gemini.start_chat(history=history)
-        response = chat.send_message(last_msg)
-        raw = response.text.strip()
+        response = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=messages,
+            max_tokens=1024,
+        )
+        raw = response.choices[0].message.content.strip()
 
         # Strip markdown code fences if present
         if raw.startswith("```"):
