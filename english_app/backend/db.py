@@ -63,5 +63,7 @@ def init_db():
     except Exception:
         pass  # 이미 존재하면 무시
 
+    # daily_vocab_count를 30으로 업데이트
+    cur.execute("UPDATE user_profile SET daily_vocab_count = 30 WHERE daily_vocab_count < 30")
     conn.commit()
     conn.close()
