@@ -206,7 +206,7 @@ def get_today_vocab():
             (today, level_code),
         ).fetchall()
 
-        if rows:
+        if rows and len(rows) >= daily_count:
             return {
                 "date": today,
                 "level_code": level_code,
@@ -214,43 +214,64 @@ def get_today_vocab():
                 "words": [dict(r) for r in rows],
             }
 
+        # 단어 수 부족하면 기존 오늘 단어 삭제 후 재생성
+        if rows:
+            conn.execute(
+                "DELETE FROM vocab_words WHERE created_date = ? AND level_code = ?",
+                (today, level_code),
+            )
+            conn.commit()
+
         # Generate with Groq
         learning_mode = profile.get("learning_mode", "general")
         groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
+        LEVEL_VOCAB_GUIDE = {
+            "A2": "elementary vocabulary (greet, family, simple verbs). Avoid overly basic words like go/eat/water.",
+            "B1": "pre-intermediate vocabulary (demonstrate, various, arrange, prefer, involve).",
+            "B2": "intermediate vocabulary (ambiguous, inevitable, substantial, persuade, elaborate). NEVER use basic words like cloud/house/run.",
+            "C1": "upper-intermediate vocabulary (eloquent, meticulous, compelling, nuance, rhetoric).",
+            "C2": "advanced/near-native vocabulary (juxtapose, quintessential, perspicacious, ephemeral).",
+        }
+        level_guide = LEVEL_VOCAB_GUIDE.get(level_code, LEVEL_VOCAB_GUIDE["B1"])
+
+        EXAMPLE_JSON = '''[{"type":"word","english":"inevitable","pronunciation":"/ɪnˈevɪtəbl/","korean":"불가피한","part_of_speech":"adjective","example_en":"Change is inevitable in life.","example_ko":"변화는 삶에서 불가피하다.","tip":"in(아닌)+evit(피하다) = 피할 수 없는"}]'''
+
         if learning_mode == "toeic_speaking":
-            mode_instruction = f"""TOEIC Speaking 시험 준비 학습자를 위한 어휘 {daily_count}개를 선정하세요.
-다음 카테고리에서 골고루 선정해주세요:
-1. 비즈니스/직장 어휘 (propose, negotiate, allocate, implement, coordinate, delegate 등)
-2. 의견·논리 표현 (furthermore, consequently, nevertheless, whereas, advocate 등)
-3. 사진 묘사 표현 (adjacent to, in the foreground, appears to be, is engaged in 등)
-4. 격식체 표현 (I would like to suggest, It would be advisable to, regarding 등)
-5. 문제 해결 어휘 (alternative, compromise, priority, feasible, contingency 등)
-예문은 반드시 직장·비즈니스 상황으로 작성하세요."""
+            mode_instruction = f"""You are an expert English vocabulary teacher. Select {daily_count} TOEIC Speaking vocabulary items for a Korean learner.
+Categories (mix evenly): business verbs (propose, negotiate, allocate, coordinate), logical connectors (furthermore, consequently, nevertheless), descriptive phrases (adjacent to, in the foreground, appears to be), formal expressions (It would be advisable to, regarding, pertaining to), problem-solving words (alternative, feasible, contingency, mitigation).
+All example sentences must be business/workplace situations."""
         else:
-            mode_instruction = f"""레벨 {level_code} 한국인 영어 학습자를 위한 단어와 숙어를 70:30 비율로 선정하세요.
-오늘 날짜({date.today().isoformat()})를 시드로 활용해 매일 다른 단어를 제공하세요."""
+            mode_instruction = f"""You are an expert English vocabulary teacher. Select {daily_count} vocabulary items (70% words, 30% idioms) for a Korean learner at CEFR level {level_code}.
+Level {level_code} means: {level_guide}
+Vary the selection using today's date {date.today().isoformat()} as a seed. Each day must have DIFFERENT words."""
 
         def build_prompt(n, exclude=None):
-            excl = f"\nDo NOT include these words: {', '.join(exclude)}." if exclude else ""
+            excl = f"\nDo NOT include any of these already-selected words: {', '.join(exclude)}." if exclude else ""
             return f"""{mode_instruction}
+{excl}
+Select exactly {n} items. Return ONLY a valid JSON array — no markdown, no code fences, no explanation.
+Each object must have exactly these fields: type ("word" or "idiom"), english, pronunciation (IPA in /slashes/), korean, part_of_speech, example_en, example_ko, tip.
+CRITICAL RULES:
+- korean: accurate Korean meaning in Hangul only (NO Chinese characters 한자 금지). Must be correct dictionary meaning.
+- example_ko: natural Korean translation of example_en. Must match the English sentence meaning exactly.
+- tip: short Korean memory tip or "" if none.
 
-Select exactly {n} items.{excl} Return ONLY a JSON array (no markdown, no code fences).
-Each item fields: type ("word"/"idiom"), english, pronunciation (/ipa/), korean, part_of_speech, example_en, example_ko, tip (short Korean tip or "").
-All Korean text: Hangul only, NO Chinese characters (한자 금지)."""
+Example of correct output format:
+{EXAMPLE_JSON}"""
 
         def call_groq(prompt_text):
             resp = groq_client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt_text}],
-                max_tokens=2500,
+                max_tokens=2000,
             )
             raw = resp.choices[0].message.content.strip()
             if raw.startswith("```"):
                 raw = "\n".join(l for l in raw.split("\n") if not l.startswith("```")).strip()
             return json.loads(raw)
 
-        # 10개씩 나눠서 요청 (Korean text uses ~1.3 chars/token → 10 words ≈ 1500 tokens, well within 2500 limit)
+        # 10개씩 나눠서 요청 (llama-3.3-70b-versatile: 6000 TPM → sleep 12s between batches)
         batch = 10
         words_data = []
         remaining = daily_count
@@ -266,7 +287,7 @@ All Korean text: Hangul only, NO Chinese characters (한자 금지)."""
                     break  # 일부라도 있으면 진행
                 raise
             if remaining > 0:
-                time.sleep(1.5)
+                time.sleep(12)
 
         for w in words_data:
             conn.execute(
