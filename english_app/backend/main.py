@@ -216,7 +216,7 @@ def get_today_vocab():
         # Generate with Gemini
         learning_mode = profile.get("learning_mode", "general")
         genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-        gemini = genai.GenerativeModel("gemini-1.5-flash")
+        gemini = genai.GenerativeModel("gemini-2.0-flash")
 
         if learning_mode == "toeic_speaking":
             mode_instruction = f"""TOEIC Speaking 시험 준비 학습자를 위한 어휘 {daily_count}개를 선정하세요.
@@ -505,7 +505,7 @@ If there is an error:
 {{"reply": "Your English response", "correction": {{"has_error": true, "original": "what they wrote incorrectly", "corrected": "the correct version", "explanation": "한국어로 간단히 설명"}}}}"""
 
     genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-    gemini = genai.GenerativeModel("gemini-1.5-flash", system_instruction=system_prompt)
+    gemini = genai.GenerativeModel("gemini-2.0-flash", system_instruction=system_prompt)
 
     # Gemini uses "model" instead of "assistant"
     history = []
