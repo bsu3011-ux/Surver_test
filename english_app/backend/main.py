@@ -248,7 +248,7 @@ Return only the JSON array, nothing else. All Korean text must use ONLY Hangul (
         response = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=2048,
+            max_tokens=8000,
         )
         raw = response.choices[0].message.content.strip()
         # Strip markdown code fences if present
