@@ -240,12 +240,22 @@ export default function QuizPage() {
             >
               <span className="font-bold text-gray-400 mr-3">{idx + 1}.</span>
               {option}
-              {answered && idx === q.correct_index && <span className="ml-2">✓</span>}
-              {answered && idx === selectedOption && idx !== q.correct_index && <span className="ml-2">✗</span>}
+              {answered && idx === q.correct_index && <span className="ml-2 text-green-600">✓ 정답</span>}
+              {answered && idx === selectedOption && idx !== q.correct_index && <span className="ml-2 text-red-500">✗</span>}
             </button>
           )
         })}
       </div>
+
+      {/* 모르겠다 버튼 */}
+      {!answered && (
+        <button
+          onClick={() => handleOptionClick(-1)}
+          className="w-full text-center p-3 mb-4 rounded-xl border-2 border-dashed border-gray-300 text-gray-400 text-sm hover:border-gray-400 hover:text-gray-500 transition"
+        >
+          🤔 모르겠다 (정답 보기)
+        </button>
+      )}
 
       {/* Next button */}
       {answered && (

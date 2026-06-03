@@ -174,6 +174,8 @@ def get_questions():
             "question": q["question"],
             "options": q["options"],
             "level": q["level"],
+            "answer": q["answer"],          # 프론트에서 정답 강조에 사용
+            "explanation": q["explanation"],
         })
     return result
 
