@@ -640,6 +640,7 @@ def placement_questions():
                 "pos": word["pos"],
                 "level": word["level"],
                 "choices": choices,
+                "correct": word["english"],
                 "pronunciation": word["pronunciation"],
             })
     random.shuffle(questions)
