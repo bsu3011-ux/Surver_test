@@ -1,10 +1,14 @@
 import json
 import sqlite3
 import random
+import hmac
+import hashlib
+import subprocess
+import os
 from datetime import date, datetime
 from pathlib import Path
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI, HTTPException, Request, Header
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -253,6 +257,57 @@ def get_bookmarks():
 def get_categories():
     cats = sorted(set(w["category"] for w in WORDS))
     return cats
+
+# ── GitHub 자동 배포 웹훅 ──────────────────────────────────
+WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "malhaeboka-secret")
+REPO_DIR = BASE_DIR.parent  # Surver_test 루트
+
+@app.post("/webhook/github")
+async def github_webhook(request: Request, x_hub_signature_256: str = Header(None)):
+    body = await request.body()
+
+    # 서명 검증
+    if x_hub_signature_256:
+        expected = "sha256=" + hmac.new(
+            WEBHOOK_SECRET.encode(), body, hashlib.sha256
+        ).hexdigest()
+        if not hmac.compare_digest(expected, x_hub_signature_256):
+            raise HTTPException(status_code=401, detail="서명 불일치")
+
+    payload = json.loads(body)
+    branch = payload.get("ref", "").replace("refs/heads/", "")
+    pusher = payload.get("pusher", {}).get("name", "unknown")
+    commits = len(payload.get("commits", []))
+
+    # 배포 브랜치가 아니면 무시
+    target_branch = os.environ.get("DEPLOY_BRANCH", "claude/malheboka-structure-analysis-GedwO")
+    if branch != target_branch:
+        return {"status": "skipped", "reason": f"branch {branch} is not deploy target"}
+
+    # 비동기로 배포 실행
+    deploy_script = str(BASE_DIR / "deploy.sh")
+    subprocess.Popen(
+        ["bash", deploy_script],
+        cwd=str(REPO_DIR),
+        stdout=open(str(BASE_DIR / "deploy.log"), "a"),
+        stderr=subprocess.STDOUT,
+    )
+
+    return {
+        "status": "deploying",
+        "branch": branch,
+        "pusher": pusher,
+        "commits": commits,
+    }
+
+@app.get("/webhook/status")
+def webhook_status():
+    log_path = BASE_DIR / "deploy.log"
+    lines = []
+    if log_path.exists():
+        with open(log_path) as f:
+            lines = f.readlines()[-30:]
+    return {"log": "".join(lines)}
 
 # ── 정적 파일 ──────────────────────────────────────────────
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
