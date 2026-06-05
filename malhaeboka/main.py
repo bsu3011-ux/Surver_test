@@ -643,7 +643,7 @@ def placement_questions():
                 "pronunciation": word["pronunciation"],
             })
     random.shuffle(questions)
-    return {"questions": questions[:20]}
+    return questions[:20]
 
 @app.post("/api/placement/submit")
 def placement_submit(req: PlacementSubmitRequest):
