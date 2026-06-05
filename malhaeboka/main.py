@@ -114,12 +114,12 @@ def sm2_update(quality: int, repetitions: int, ease_factor: float, interval: int
     """quality 0-5: 0=blackout, 3=correct hard, 4=correct, 5=perfect"""
     if quality < 3:
         repetitions = 0
-        interval = 1
+        interval = 1  # 오답 → 내일 복습
     else:
         if repetitions == 0:
-            interval = 1
+            interval = 3  # 첫 정답 → 3일 후
         elif repetitions == 1:
-            interval = 6
+            interval = 7  # 두 번째 정답 → 1주일 후
         else:
             interval = round(interval * ease_factor)
         repetitions += 1
@@ -568,6 +568,13 @@ def submit_answer(req: AnswerRequest):
         all_progs = [dict(p) for p in conn.execute("SELECT * FROM word_progress").fetchall()]
         new_achievements = check_achievements(conn, stats, all_progs)
 
+    # 오답일 때 사용자가 선택한 단어의 한국어 뜻 찾기
+    wrong_korean = ""
+    if not correct:
+        wrong_word = next((w for w in WORDS if w["english"].lower() == req.answer.strip().lower()), None)
+        if wrong_word:
+            wrong_korean = wrong_word["korean"]
+
     streak = update_streak()
     with get_db() as conn:
         stats = dict(conn.execute("SELECT * FROM user_stats WHERE id=1").fetchone())
@@ -575,11 +582,14 @@ def submit_answer(req: AnswerRequest):
     return {
         "correct": correct,
         "correct_answer": word["english"],
+        "correct_korean": word["korean"],
         "pronunciation": word["pronunciation"],
         "sentence": word["sentence"],
         "sentence_ko": word["sentence_ko"],
         "sentence2": word.get("sentence2", ""),
         "sentence2_ko": word.get("sentence2_ko", ""),
+        "wrong_answer": req.answer if not correct else "",
+        "wrong_korean": wrong_korean,
         "diamonds": stats["diamonds"],
         "xp": stats["xp"],
         "streak": streak,

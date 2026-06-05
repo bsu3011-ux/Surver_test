@@ -164,9 +164,13 @@ body{font-family:-apple-system,'Pretendard','Noto Sans KR',sans-serif;background
 .feedback-card.wrong{background:#FEE2E2;border:2px solid var(--danger);}
 .fb-title{font-size:18px;font-weight:800;margin-bottom:6px;}
 .fb-answer{font-size:22px;font-weight:800;color:var(--primary);}
-.fb-pron{font-size:13px;color:var(--text-muted);margin-bottom:6px;}
-.fb-ex{font-size:13px;line-height:1.6;}
-.fb-ex2{font-size:12px;color:var(--text-muted);margin-top:4px;font-style:italic;}
+.fb-korean{font-size:15px;font-weight:700;margin-bottom:2px;}
+.fb-pron{font-size:13px;color:var(--text-muted);margin-bottom:8px;}
+.fb-wrong{font-size:13px;background:rgba(0,0,0,.06);border-radius:8px;padding:6px 10px;margin-bottom:8px;display:none;}
+.fb-ex{font-size:13px;line-height:1.6;font-weight:500;}
+.fb-ex-ko{font-size:12px;color:var(--text-muted);margin-bottom:6px;}
+.fb-ex2{font-size:13px;line-height:1.6;font-weight:500;font-style:italic;margin-top:4px;}
+.fb-ex2-ko{font-size:12px;color:var(--text-muted);margin-bottom:4px;}
 .fb-mastery{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:13px;font-weight:600;}
 
 .next-btn{width:100%;padding:15px;background:var(--hero-grad);color:#fff;border:none;border-radius:16px;font-size:17px;font-weight:700;cursor:pointer;display:none;}
@@ -488,9 +492,13 @@ body{font-family:-apple-system,'Pretendard','Noto Sans KR',sans-serif;background
       <div class="feedback-card" id="feedback-card">
         <div class="fb-title" id="fb-title"></div>
         <div class="fb-answer" id="fb-answer"></div>
+        <div class="fb-korean" id="fb-korean"></div>
         <div class="fb-pron" id="fb-pron"></div>
+        <div class="fb-wrong" id="fb-wrong"></div>
         <div class="fb-ex" id="fb-ex"></div>
+        <div class="fb-ex-ko" id="fb-ex-ko"></div>
         <div class="fb-ex2" id="fb-ex2"></div>
+        <div class="fb-ex2-ko" id="fb-ex2-ko"></div>
         <div class="fb-mastery" id="fb-mastery"></div>
       </div>
 
@@ -904,9 +912,21 @@ async function doSubmit(answer, choiceBtn=null) {
   fb.style.display = 'block';
   document.getElementById('fb-title').textContent = res.correct?'🎉 정답!':'😢 오답';
   document.getElementById('fb-answer').textContent = res.correct_answer;
+  document.getElementById('fb-korean').textContent = res.correct_korean||'';
   document.getElementById('fb-pron').textContent = res.pronunciation;
+  const wrongEl = document.getElementById('fb-wrong');
+  if (!res.correct && res.wrong_answer) {
+    wrongEl.style.display = 'block';
+    wrongEl.textContent = res.wrong_korean
+      ? `선택: ${res.wrong_answer} = ${res.wrong_korean}`
+      : `선택: ${res.wrong_answer} (단어장에 없는 단어)`;
+  } else {
+    wrongEl.style.display = 'none';
+  }
   document.getElementById('fb-ex').textContent = res.sentence;
+  document.getElementById('fb-ex-ko').textContent = res.sentence_ko||'';
   document.getElementById('fb-ex2').textContent = res.sentence2||'';
+  document.getElementById('fb-ex2-ko').textContent = res.sentence2_ko||'';
   const masteryEl = document.getElementById('fb-mastery');
   const stars = '⭐'.repeat(res.mastery)+'☆'.repeat(5-res.mastery);
   masteryEl.innerHTML = `마스터리: <span style="letter-spacing:1px">${stars}</span> ${MASTERY_LABELS[res.mastery]||''}`;
