@@ -380,9 +380,6 @@ def next_quiz(category: str = "all"):
         hearts = check_heart_regen(conn)
         rows = conn.execute("SELECT * FROM word_progress").fetchall()
 
-    if hearts <= 0:
-        raise HTTPException(400, "하트가 없습니다. 30분 후에 재도전하세요.")
-
     prog = {r["word_id"]: dict(r) for r in rows}
     today = str(date.today())
     user_level = settings.get("user_level", 0)
