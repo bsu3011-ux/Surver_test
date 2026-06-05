@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>말해보카</title>
+<style>
+:root {
+  --primary: #7C3AED;
+  --primary-light: #A78BFA;
+  --primary-dark: #5B21B6;
+  --accent: #F59E0B;
+  --accent-light: #FCD34D;
+  --success: #10B981;
+  --danger: #EF4444;
+  --bg: #F8F7FF;
+  --card: #FFFFFF;
+  --text: #1E1B4B;
+  --text-muted: #6B7280;
+  --border: #E5E7EB;
+  --shadow: 0 4px 20px rgba(124,58,237,.12);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, 'Pretendard', 'Noto Sans KR', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── 헤더 ── */
+.header {
+  background: linear-gradient(135deg, var(--primary) 0%, #9333EA 100%);
+  padding: 16px 20px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header-logo {
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.5px;
+}
+.header-logo span { color: var(--accent-light); }
+.header-gems {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.gem-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255,255,255,.18);
+  border-radius: 20px;
+  padding: 4px 10px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+}
+.gem-badge .icon { font-size: 16px; }
+
+/* ── 메인 콘텐츠 ── */
+.main { flex: 1; overflow-y: auto; padding-bottom: 80px; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── 홈 탭 ── */
+.home-hero {
+  background: linear-gradient(135deg, var(--primary) 0%, #9333EA 100%);
+  padding: 20px 20px 36px;
+  color: #fff;
+}
+.streak-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.streak-flame {
+  font-size: 28px;
+  animation: flame 1.5s ease-in-out infinite;
+}
+@keyframes flame {
+  0%,100% { transform: scale(1) rotate(-3deg); }
+  50% { transform: scale(1.15) rotate(3deg); }
+}
+.streak-count {
+  font-size: 28px;
+  font-weight: 900;
+}
+.streak-label { font-size: 13px; opacity: .8; }
+
+.xp-bar-wrap { margin-top: 4px; }
+.xp-label-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  opacity: .8;
+  margin-bottom: 6px;
+}
+.xp-bar {
+  height: 8px;
+  background: rgba(255,255,255,.25);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.xp-fill {
+  height: 100%;
+  background: var(--accent-light);
+  border-radius: 4px;
+  transition: width .6s ease;
+}
+.league-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255,255,255,.2);
+  border-radius: 12px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.home-cards { padding: 16px 16px 0; }
+
+.start-card {
+  background: var(--card);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+  margin-bottom: 16px;
+  cursor: pointer;
+  transition: transform .15s;
+}
+.start-card:active { transform: scale(.98); }
+.start-card-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.start-card-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+.start-btn {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, var(--primary), #9333EA);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.start-btn:hover { opacity: .92; }
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.stat-card {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.stat-card .val {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--primary);
+  line-height: 1;
+}
+.stat-card .lbl {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.category-row { display: flex; gap: 8px; overflow-x: auto; padding: 0 16px 16px; scrollbar-width: none; }
+.category-row::-webkit-scrollbar { display: none; }
+.cat-chip {
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 2px solid var(--border);
+  background: var(--card);
+  transition: all .15s;
+}
+.cat-chip.active, .cat-chip:hover {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+/* ── 퀴즈 탭 ── */
+.quiz-wrap { padding: 16px; }
+.quiz-progress { margin-bottom: 16px; }
+.quiz-progress-bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.quiz-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--primary-light));
+  border-radius: 3px;
+  transition: width .4s ease;
+}
+.quiz-progress-txt { font-size: 12px; color: var(--text-muted); text-align: right; }
+
+.quiz-card {
+  background: var(--card);
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: var(--shadow);
+  margin-bottom: 16px;
+  min-height: 220px;
+}
+.quiz-pos-badge {
+  display: inline-block;
+  background: #EDE9FE;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+.quiz-korean {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 8px;
+  letter-spacing: -1px;
+}
+.quiz-sentence {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  background: #F5F3FF;
+  border-radius: 12px;
+  padding: 12px;
+  margin-top: 12px;
+}
+.quiz-sentence .blank {
+  display: inline-block;
+  color: var(--primary);
+  font-weight: 700;
+  border-bottom: 2px solid var(--primary);
+  padding: 0 2px;
+  min-width: 60px;
+  text-align: center;
+}
+
+.answer-section { margin-bottom: 16px; }
+.mode-toggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.mode-btn {
+  flex: 1;
+  padding: 8px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.mode-btn.active {
+  border-color: var(--primary);
+  background: #EDE9FE;
+  color: var(--primary);
+}
+
+.input-wrap {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.answer-input {
+  flex: 1;
+  padding: 14px 16px;
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  font-size: 18px;
+  font-weight: 600;
+  outline: none;
+  transition: border-color .15s;
+  background: var(--card);
+}
+.answer-input:focus { border-color: var(--primary); }
+.submit-btn {
+  padding: 14px 20px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.hint-btn {
+  background: none;
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 14px;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+/* 객관식 선택지 */
+.choices-grid { display: grid; gap: 10px; }
+.choice-btn {
+  width: 100%;
+  padding: 16px;
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.choice-btn:hover { border-color: var(--primary-light); background: #F5F3FF; }
+.choice-btn.correct { border-color: var(--success); background: #D1FAE5; color: #065F46; }
+.choice-btn.wrong { border-color: var(--danger); background: #FEE2E2; color: #991B1B; }
+.choice-letter {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #F3F4F6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* 피드백 카드 */
+.feedback-card {
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 16px;
+  display: none;
+}
+.feedback-card.correct { background: #D1FAE5; border: 2px solid var(--success); }
+.feedback-card.wrong { background: #FEE2E2; border: 2px solid var(--danger); }
+.feedback-title { font-size: 20px; font-weight: 800; margin-bottom: 8px; }
+.feedback-answer { font-size: 22px; font-weight: 800; color: var(--primary); }
+.feedback-pron { font-size: 14px; color: var(--text-muted); margin-bottom: 6px; }
+.feedback-ex { font-size: 14px; line-height: 1.6; color: var(--text); }
+.feedback-ex-ko { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.reward-pop {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  background: var(--card);
+  border-radius: 20px;
+  padding: 24px 32px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,.2);
+  z-index: 200;
+  transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+}
+.reward-pop.show { transform: translate(-50%,-50%) scale(1); }
+.reward-pop .emoji { font-size: 48px; }
+.reward-pop .title { font-size: 20px; font-weight: 800; margin: 8px 0 4px; }
+.reward-pop .sub { font-size: 14px; color: var(--text-muted); }
+
+.next-btn {
+  width: 100%;
+  padding: 16px;
+  background: linear-gradient(135deg, var(--primary), #9333EA);
+  color: #fff;
+  border: none;
+  border-radius: 16px;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  display: none;
+}
+
+/* 음성 모드 */
+.mic-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 0;
+}
+.mic-btn {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, var(--primary), #9333EA);
+  color: #fff;
+  font-size: 36px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(124,58,237,.4);
+  transition: transform .15s;
+}
+.mic-btn:active { transform: scale(.94); }
+.mic-btn.listening {
+  animation: pulse-mic 1s ease-in-out infinite;
+  background: linear-gradient(135deg, var(--danger), #F87171);
+}
+@keyframes pulse-mic {
+  0%,100% { box-shadow: 0 8px 24px rgba(239,68,68,.4); }
+  50% { box-shadow: 0 8px 40px rgba(239,68,68,.7); }
+}
+.mic-status { font-size: 14px; color: var(--text-muted); font-weight: 500; }
+.mic-result { font-size: 22px; font-weight: 700; color: var(--primary); min-height: 32px; }
+
+/* ── 단어장 탭 ── */
+.wordbook-wrap { padding: 16px; }
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card);
+  border-radius: 14px;
+  padding: 12px 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  margin-bottom: 16px;
+}
+.search-bar input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 15px;
+  background: transparent;
+}
+.search-bar .icon { color: var(--text-muted); font-size: 18px; }
+
+.cat-tabs { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 16px; scrollbar-width: none; }
+.cat-tabs::-webkit-scrollbar { display: none; }
+.cat-tab {
+  padding: 7px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 2px solid var(--border);
+  background: var(--card);
+  transition: all .15s;
+}
+.cat-tab.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.word-list { display: flex; flex-direction: column; gap: 10px; }
+.word-item {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  transition: transform .12s;
+}
+.word-item:active { transform: scale(.98); }
+.word-item-left { flex: 1; }
+.word-english { font-size: 18px; font-weight: 700; color: var(--text); }
+.word-pron { font-size: 12px; color: var(--text-muted); margin: 2px 0; }
+.word-korean { font-size: 14px; color: var(--primary); font-weight: 600; }
+.word-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.pos-chip {
+  font-size: 11px;
+  background: #EDE9FE;
+  color: var(--primary);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.level-dots { display: flex; gap: 3px; }
+.level-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+}
+.level-dot.on { background: var(--accent); }
+.bookmark-btn {
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+/* 단어 상세 모달 */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  z-index: 300;
+  display: none;
+  align-items: flex-end;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--card);
+  border-radius: 28px 28px 0 0;
+  padding: 24px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  animation: slide-up .3s ease;
+}
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.modal-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 0 auto 20px;
+}
+.modal-english { font-size: 32px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+.modal-pron { font-size: 16px; color: var(--text-muted); margin-bottom: 12px; }
+.modal-meaning {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 16px;
+}
+.modal-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 8px;
+}
+.modal-example {
+  background: #F5F3FF;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.modal-example .en { font-size: 15px; line-height: 1.6; color: var(--text); font-weight: 500; }
+.modal-example .ko { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
+.modal-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.modal-stat-item { text-align: center; background: #F9FAFB; border-radius: 12px; padding: 12px; }
+.modal-stat-item .val { font-size: 20px; font-weight: 800; color: var(--primary); }
+.modal-stat-item .lbl { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.speak-btn {
+  width: 100%;
+  padding: 14px;
+  background: #EDE9FE;
+  color: var(--primary);
+  border: none;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.quiz-this-btn {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, var(--primary), #9333EA);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ── 통계 탭 ── */
+.stats-wrap { padding: 16px; }
+.stats-hero {
+  background: linear-gradient(135deg, var(--primary), #9333EA);
+  border-radius: 24px;
+  padding: 24px;
+  color: #fff;
+  margin-bottom: 16px;
+}
+.stats-hero-title { font-size: 15px; opacity: .8; margin-bottom: 4px; }
+.stats-hero-val { font-size: 40px; font-weight: 900; }
+.stats-hero-sub { font-size: 13px; opacity: .7; }
+
+.stats-section { background: var(--card); border-radius: 20px; padding: 20px; box-shadow: var(--shadow); margin-bottom: 16px; }
+.stats-section-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+
+.weekly-bars { display: flex; align-items: flex-end; gap: 6px; height: 100px; }
+.week-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.week-bar-bg {
+  flex: 1;
+  width: 100%;
+  background: #F3F4F6;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+}
+.week-bar-fill {
+  width: 100%;
+  background: linear-gradient(180deg, var(--primary-light), var(--primary));
+  border-radius: 8px;
+  transition: height .6s ease;
+  min-height: 4px;
+}
+.week-bar-day { font-size: 11px; color: var(--text-muted); }
+
+.league-section {
+  background: linear-gradient(135deg, #FFF7ED, #FEF3C7);
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 16px;
+  border: 2px solid #FCD34D;
+}
+.league-title { font-size: 16px; font-weight: 700; color: #92400E; margin-bottom: 12px; }
+.league-list { display: flex; flex-direction: column; gap: 8px; }
+.league-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.6);
+}
+.league-entry.me { background: var(--accent-light); }
+.league-rank { font-size: 16px; font-weight: 800; width: 28px; color: var(--text-muted); }
+.league-rank.top { color: var(--accent); }
+.league-name { flex: 1; font-size: 14px; font-weight: 600; }
+.league-xp { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+
+/* ── 바텀 네비 ── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  display: flex;
+  z-index: 100;
+  box-shadow: 0 -4px 20px rgba(0,0,0,.06);
+}
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0;
+  cursor: pointer;
+  transition: color .15s;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  gap: 2px;
+}
+.nav-item .nav-icon { font-size: 22px; }
+.nav-item.active { color: var(--primary); }
+
+/* ── 리그 아이콘 색상 ── */
+.league-bronze { color: #CD7F32; }
+.league-silver { color: #9CA3AF; }
+.league-gold { color: #F59E0B; }
+.league-platinum { color: #06B6D4; }
+.league-diamond { color: #7C3AED; }
+
+/* ── 공통 유틸 ── */
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- 헤더 -->
+<div class="header">
+  <div class="header-logo">말해<span>보카</span></div>
+  <div class="header-gems">
+    <div class="gem-badge" id="diamond-badge"><span class="icon">💎</span><span id="hdr-diamonds">0</span></div>
+    <div class="gem-badge" id="streak-badge"><span class="icon">🔥</span><span id="hdr-streak">0</span></div>
+  </div>
+</div>
+
+<!-- 메인 -->
+<div class="main">
+
+  <!-- 홈 -->
+  <div class="page active" id="page-home">
+    <div class="home-hero">
+      <div class="streak-row">
+        <div class="streak-flame">🔥</div>
+        <div>
+          <div class="streak-count"><span id="home-streak">0</span>일 연속</div>
+          <div class="streak-label">오늘도 학습 중!</div>
+        </div>
+      </div>
+      <div class="xp-bar-wrap">
+        <div class="xp-label-row">
+          <span id="home-league-label">🥉 브론즈</span>
+          <span><span id="home-xp">0</span> XP</span>
+        </div>
+        <div class="xp-bar"><div class="xp-fill" id="home-xp-fill" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <div class="home-cards">
+      <div class="start-card" onclick="startQuiz()">
+        <div class="start-card-title">📚 오늘의 학습 시작</div>
+        <div class="start-card-sub">AI가 맞춤형 단어를 골라드려요</div>
+        <button class="start-btn">학습 시작하기 →</button>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="val" id="home-learned">0</div>
+          <div class="lbl">학습 완료 단어</div>
+        </div>
+        <div class="stat-card">
+          <div class="val" id="home-accuracy">0%</div>
+          <div class="lbl">정답률</div>
+        </div>
+        <div class="stat-card">
+          <div class="val" id="home-total">50</div>
+          <div class="lbl">전체 단어</div>
+        </div>
+        <div class="stat-card">
+          <div class="val" id="home-diamonds">0</div>
+          <div class="lbl">💎 다이아</div>
+        </div>
+      </div>
+
+      <div style="font-size:14px;font-weight:700;color:var(--text-muted);margin-bottom:10px;">카테고리별 학습</div>
+      <div class="category-row" id="cat-chips"></div>
+    </div>
+  </div>
+
+  <!-- 퀴즈 -->
+  <div class="page" id="page-quiz">
+    <div class="quiz-wrap">
+      <div class="quiz-progress">
+        <div class="quiz-progress-bar"><div class="quiz-progress-fill" id="quiz-prog" style="width:0%"></div></div>
+        <div class="quiz-progress-txt"><span id="quiz-q-num">0</span>번째 퀴즈</div>
+      </div>
+
+      <div class="quiz-card">
+        <div class="quiz-pos-badge" id="quiz-pos">명사</div>
+        <div class="quiz-korean" id="quiz-korean">로딩 중...</div>
+        <div class="quiz-sentence" id="quiz-sentence"></div>
+      </div>
+
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="mode-keyboard" onclick="setMode('keyboard')">⌨️ 타이핑</button>
+        <button class="mode-btn" id="mode-choice" onclick="setMode('choice')">📋 객관식</button>
+        <button class="mode-btn" id="mode-voice" onclick="setMode('voice')">🎙️ 음성</button>
+      </div>
+
+      <!-- 타이핑 모드 -->
+      <div class="answer-section" id="sec-keyboard">
+        <div class="input-wrap">
+          <button class="hint-btn" onclick="showHint()" title="힌트">💡</button>
+          <input class="answer-input" id="answer-input" type="text" placeholder="영어 단어 입력..." autocomplete="off" autocorrect="off" spellcheck="false">
+          <button class="submit-btn" onclick="submitAnswer()">확인</button>
+        </div>
+        <div id="hint-text" style="font-size:14px;color:var(--text-muted);margin-top:8px;text-align:center;display:none;"></div>
+      </div>
+
+      <!-- 객관식 모드 -->
+      <div class="answer-section hidden" id="sec-choice">
+        <div class="choices-grid" id="choices-grid"></div>
+      </div>
+
+      <!-- 음성 모드 -->
+      <div class="answer-section hidden" id="sec-voice">
+        <div class="mic-wrap">
+          <div class="mic-status" id="mic-status">버튼을 누르고 영어 단어를 말하세요</div>
+          <button class="mic-btn" id="mic-btn" onclick="toggleMic()">🎙️</button>
+          <div class="mic-result" id="mic-result"></div>
+          <button class="submit-btn hidden" id="voice-submit" onclick="submitVoice()">이 답으로 제출</button>
+        </div>
+      </div>
+
+      <div class="feedback-card" id="feedback-card">
+        <div class="feedback-title" id="fb-title"></div>
+        <div class="feedback-answer" id="fb-answer"></div>
+        <div class="feedback-pron" id="fb-pron"></div>
+        <div class="feedback-ex" id="fb-ex"></div>
+        <div class="feedback-ex-ko" id="fb-ex-ko"></div>
+      </div>
+
+      <button class="next-btn" id="next-btn" onclick="loadQuiz()">다음 문제 →</button>
+    </div>
+  </div>
+
+  <!-- 단어장 -->
+  <div class="page" id="page-words">
+    <div class="wordbook-wrap">
+      <div class="search-bar">
+        <span class="icon">🔍</span>
+        <input type="text" placeholder="단어 검색..." id="search-input" oninput="filterWords()">
+      </div>
+      <div class="cat-tabs" id="word-cat-tabs"></div>
+      <div class="word-list" id="word-list"></div>
+    </div>
+  </div>
+
+  <!-- 통계 -->
+  <div class="page" id="page-stats">
+    <div class="stats-wrap">
+      <div class="stats-hero">
+        <div class="stats-hero-title">총 학습 기록</div>
+        <div class="stats-hero-val"><span id="stat-correct">0</span>문제</div>
+        <div class="stats-hero-sub">정확도 <span id="stat-accuracy">0</span>% · 💎 <span id="stat-diamonds">0</span>개</div>
+      </div>
+
+      <div class="stats-section">
+        <div class="stats-section-title">📅 최근 7일 학습량</div>
+        <div class="weekly-bars" id="weekly-bars"></div>
+      </div>
+
+      <div class="league-section">
+        <div class="league-title">🏆 이번 주 리그</div>
+        <div class="league-list" id="league-list"></div>
+      </div>
+
+      <div class="stats-section">
+        <div class="stats-section-title">📊 학습 현황</div>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="val" id="s-learned">0</div><div class="lbl">완료 단어</div></div>
+          <div class="stat-card"><div class="val" id="s-streak">0</div><div class="lbl">🔥 연속일</div></div>
+          <div class="stat-card"><div class="val" id="s-xp">0</div><div class="lbl">XP</div></div>
+          <div class="stat-card"><div class="val" id="s-total">50</div><div class="lbl">전체 단어</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 바텀 네비 -->
+<div class="bottom-nav">
+  <div class="nav-item active" id="nav-home" onclick="goPage('home')">
+    <span class="nav-icon">🏠</span>홈
+  </div>
+  <div class="nav-item" id="nav-quiz" onclick="goPage('quiz')">
+    <span class="nav-icon">✏️</span>학습
+  </div>
+  <div class="nav-item" id="nav-words" onclick="goPage('words')">
+    <span class="nav-icon">📖</span>단어장
+  </div>
+  <div class="nav-item" id="nav-stats" onclick="goPage('stats')">
+    <span class="nav-icon">📊</span>통계
+  </div>
+</div>
+
+<!-- 단어 상세 모달 -->
+<div class="modal-overlay" id="word-modal" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:start;">
+      <div>
+        <div class="modal-english" id="m-english"></div>
+        <div class="modal-pron" id="m-pron"></div>
+      </div>
+      <button class="bookmark-btn" id="m-bookmark" onclick="toggleModalBookmark()">🤍</button>
+    </div>
+    <div class="modal-meaning" id="m-meaning"></div>
+    <div class="modal-section-title">예문</div>
+    <div class="modal-example">
+      <div class="en" id="m-example"></div>
+      <div class="ko" id="m-example-ko"></div>
+    </div>
+    <div class="modal-section-title">학습 통계</div>
+    <div class="modal-stats">
+      <div class="modal-stat-item"><div class="val" id="m-correct">0</div><div class="lbl">맞춤</div></div>
+      <div class="modal-stat-item"><div class="val" id="m-wrong">0</div><div class="lbl">틀림</div></div>
+      <div class="modal-stat-item"><div class="val" id="m-level"></div><div class="lbl">난이도</div></div>
+    </div>
+    <button class="speak-btn" onclick="speakWord()">🔊 발음 듣기</button>
+    <button class="quiz-this-btn" onclick="quizThis()">이 단어로 퀴즈 풀기</button>
+  </div>
+</div>
+
+<!-- 리워드 팝업 -->
+<div class="reward-pop" id="reward-pop">
+  <div class="emoji" id="rp-emoji">🎉</div>
+  <div class="title" id="rp-title">정답!</div>
+  <div class="sub" id="rp-sub">+1 💎 +10 XP</div>
+</div>
+
+<script>
+// ── 상태 ────────────────────────────────────────────────
+let currentWord = null;
+let currentMode = 'keyboard';
+let quizCount = 0;
+let allWords = [];
+let bookmarks = new Set();
+let currentModalWord = null;
+let recognition = null;
+let voiceAnswer = '';
+let currentCatFilter = 'all';
+let wordCatFilter = 'all';
+const leagues = ['bronze','silver','gold','platinum','diamond'];
+const leagueLabels = { bronze:'🥉 브론즈', silver:'🥈 실버', gold:'🥇 골드', platinum:'🏅 플래티넘', diamond:'💎 다이아' };
+const leagueColors = { bronze:'#CD7F32', silver:'#9CA3AF', gold:'#F59E0B', platinum:'#06B6D4', diamond:'#7C3AED' };
+
+// ── 페이지 전환 ───────────────────────────────────────────
+function goPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  if (name === 'home') loadHome();
+  if (name === 'words') loadWordList();
+  if (name === 'stats') loadStats();
+  if (name === 'quiz' && !currentWord) loadQuiz();
+}
+
+// ── 홈 ─────────────────────────────────────────────────
+async function loadHome() {
+  const data = await api('/api/stats');
+  document.getElementById('home-streak').textContent = data.streak;
+  document.getElementById('hdr-streak').textContent = data.streak;
+  document.getElementById('hdr-diamonds').textContent = data.diamonds;
+  document.getElementById('home-xp').textContent = data.xp;
+  document.getElementById('home-learned').textContent = data.learned_words;
+  document.getElementById('home-accuracy').textContent = data.accuracy + '%';
+  document.getElementById('home-total').textContent = data.total_words;
+  document.getElementById('home-diamonds').textContent = data.diamonds;
+  document.getElementById('home-league-label').textContent = leagueLabels[data.league] || '🥉 브론즈';
+  const xpRange = data.xp_max - data.xp_min;
+  const xpPct = xpRange > 0 ? Math.min(100, ((data.xp - data.xp_min) / xpRange * 100)) : 100;
+  document.getElementById('home-xp-fill').style.width = xpPct + '%';
+
+  // 카테고리 칩
+  const cats = await api('/api/categories');
+  const container = document.getElementById('cat-chips');
+  container.innerHTML = '';
+  ['all', ...cats].forEach(cat => {
+    const chip = document.createElement('div');
+    chip.className = 'cat-chip' + (currentCatFilter === cat ? ' active' : '');
+    chip.textContent = cat === 'all' ? '전체' : cat;
+    chip.onclick = () => { currentCatFilter = cat; loadHome(); };
+    container.appendChild(chip);
+  });
+}
+
+function startQuiz() {
+  goPage('quiz');
+  loadQuiz();
+}
+
+// ── 퀴즈 ─────────────────────────────────────────────
+async function loadQuiz() {
+  currentWord = null;
+  document.getElementById('feedback-card').style.display = 'none';
+  document.getElementById('next-btn').style.display = 'none';
+  document.getElementById('answer-input').value = '';
+  document.getElementById('hint-text').style.display = 'none';
+  document.getElementById('mic-result').textContent = '';
+  document.getElementById('voice-submit').classList.add('hidden');
+  voiceAnswer = '';
+
+  const url = '/api/quiz/next' + (currentCatFilter !== 'all' ? '?category=' + encodeURIComponent(currentCatFilter) : '');
+  const data = await api(url);
+  currentWord = data;
+  quizCount++;
+
+  document.getElementById('quiz-pos').textContent = posLabel(data.pos);
+  document.getElementById('quiz-korean').textContent = data.korean;
+  document.getElementById('quiz-sentence').innerHTML =
+    '🔤 ' + data.sentence_blank.replace(/_{2,}/g, s => `<span class="blank">${s}</span>`);
+  document.getElementById('quiz-prog').style.width = Math.min(100, quizCount * 10) + '%';
+  document.getElementById('quiz-q-num').textContent = quizCount;
+
+  // 객관식 보기
+  const grid = document.getElementById('choices-grid');
+  grid.innerHTML = '';
+  const letters = ['A','B','C','D'];
+  data.choices.forEach((c, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.innerHTML = `<span class="choice-letter">${letters[i]}</span>${c}`;
+    btn.onclick = () => submitChoice(c, btn);
+    grid.appendChild(btn);
+  });
+
+  setMode(currentMode);
+  if (currentMode === 'keyboard') document.getElementById('answer-input').focus();
+}
+
+function posLabel(pos) {
+  const map = { noun:'명사', verb:'동사', adj:'형용사', adv:'부사' };
+  return map[pos] || pos;
+}
+
+function setMode(mode) {
+  currentMode = mode;
+  ['keyboard','choice','voice'].forEach(m => {
+    document.getElementById('sec-' + m).classList.toggle('hidden', m !== mode);
+    document.getElementById('mode-' + m).classList.toggle('active', m === mode);
+  });
+  if (mode === 'keyboard') document.getElementById('answer-input').focus();
+}
+
+document.getElementById('answer-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitAnswer();
+});
+
+function showHint() {
+  if (!currentWord) return;
+  const el = document.getElementById('hint-text');
+  el.textContent = '힌트: ' + currentWord.hint;
+  el.style.display = 'block';
+}
+
+async function submitAnswer() {
+  const ans = document.getElementById('answer-input').value.trim();
+  if (!ans || !currentWord) return;
+  await doSubmit(ans);
+}
+
+async function submitChoice(answer, btn) {
+  if (!currentWord) return;
+  // 버튼들 비활성화
+  document.querySelectorAll('.choice-btn').forEach(b => b.onclick = null);
+  const res = await doSubmit(answer, btn);
+}
+
+async function submitVoice() {
+  if (!voiceAnswer || !currentWord) return;
+  await doSubmit(voiceAnswer);
+}
+
+async function doSubmit(answer, choiceBtn = null) {
+  if (!currentWord) return;
+  const res = await api('/api/quiz/answer', 'POST', { word_id: currentWord.word_id, answer });
+
+  // 객관식 시각적 피드백
+  if (choiceBtn) {
+    choiceBtn.classList.add(res.correct ? 'correct' : 'wrong');
+    if (!res.correct) {
+      document.querySelectorAll('.choice-btn').forEach(b => {
+        if (b.textContent.includes(res.correct_answer)) b.classList.add('correct');
+      });
+    }
+  }
+
+  // 피드백 카드
+  const fb = document.getElementById('feedback-card');
+  fb.className = 'feedback-card ' + (res.correct ? 'correct' : 'wrong');
+  fb.style.display = 'block';
+  document.getElementById('fb-title').textContent = res.correct ? '🎉 정답!' : '😢 오답';
+  document.getElementById('fb-answer').textContent = res.correct_answer;
+  document.getElementById('fb-pron').textContent = res.pronunciation;
+  document.getElementById('fb-ex').textContent = res.sentence;
+  document.getElementById('fb-ex-ko').textContent = res.sentence_ko;
+
+  document.getElementById('next-btn').style.display = 'block';
+
+  // 헤더 업데이트
+  document.getElementById('hdr-diamonds').textContent = res.diamonds;
+  document.getElementById('hdr-streak').textContent = res.streak;
+
+  if (res.correct) showReward(res);
+  currentWord = null;
+  return res;
+}
+
+function showReward(res) {
+  const pop = document.getElementById('reward-pop');
+  document.getElementById('rp-emoji').textContent = '🎉';
+  document.getElementById('rp-title').textContent = '정답!';
+  document.getElementById('rp-sub').textContent = `+1 💎  +10 XP`;
+  pop.classList.add('show');
+  setTimeout(() => pop.classList.remove('show'), 1400);
+}
+
+// ── 음성 인식 ────────────────────────────────────────────
+function toggleMic() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert('이 브라우저는 음성 인식을 지원하지 않습니다. Chrome을 사용해주세요.');
+    return;
+  }
+  if (recognition) { recognition.stop(); return; }
+  recognition = new SpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.continuous = false;
+  recognition.interimResults = true;
+
+  const btn = document.getElementById('mic-btn');
+  btn.classList.add('listening');
+  btn.textContent = '⏹️';
+  document.getElementById('mic-status').textContent = '듣는 중...';
+
+  recognition.onresult = e => {
+    const transcript = Array.from(e.results).map(r => r[0].transcript).join('');
+    document.getElementById('mic-result').textContent = transcript;
+    voiceAnswer = transcript;
+    if (e.results[0].isFinal) {
+      document.getElementById('voice-submit').classList.remove('hidden');
+    }
+  };
+
+  recognition.onend = () => {
+    recognition = null;
+    btn.classList.remove('listening');
+    btn.textContent = '🎙️';
+    document.getElementById('mic-status').textContent = '버튼을 누르고 영어 단어를 말하세요';
+  };
+
+  recognition.onerror = () => { recognition = null; btn.classList.remove('listening'); btn.textContent = '🎙️'; };
+  recognition.start();
+}
+
+// ── 단어장 ────────────────────────────────────────────────
+async function loadWordList() {
+  if (allWords.length === 0) allWords = await api('/api/words');
+  const bmData = await api('/api/bookmarks');
+  bookmarks = new Set(bmData.map(w => w.id));
+
+  const cats = await api('/api/categories');
+  const tabsEl = document.getElementById('word-cat-tabs');
+  tabsEl.innerHTML = '';
+  ['all', '즐겨찾기', ...cats].forEach(cat => {
+    const tab = document.createElement('div');
+    tab.className = 'cat-tab' + (wordCatFilter === cat ? ' active' : '');
+    tab.textContent = cat === 'all' ? '전체' : cat;
+    tab.onclick = () => { wordCatFilter = cat; loadWordList(); };
+    tabsEl.appendChild(tab);
+  });
+
+  renderWordList();
+}
+
+function filterWords() { renderWordList(); }
+
+function renderWordList() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  let filtered = allWords;
+  if (wordCatFilter === '즐겨찾기') filtered = filtered.filter(w => bookmarks.has(w.id));
+  else if (wordCatFilter !== 'all') filtered = filtered.filter(w => w.category === wordCatFilter);
+  if (q) filtered = filtered.filter(w => w.english.toLowerCase().includes(q) || w.korean.includes(q));
+
+  const list = document.getElementById('word-list');
+  list.innerHTML = '';
+  if (filtered.length === 0) {
+    list.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:40px;">단어가 없습니다</div>';
+    return;
+  }
+  filtered.forEach(w => {
+    const el = document.createElement('div');
+    el.className = 'word-item';
+    el.innerHTML = `
+      <div class="word-item-left">
+        <div class="word-english">${w.english}</div>
+        <div class="word-pron">${w.pronunciation}</div>
+        <div class="word-korean">${w.korean}</div>
+        <div class="word-meta">
+          <span class="pos-chip">${posLabel(w.pos)}</span>
+          <div class="level-dots">${Array.from({length:5},(_,i)=>`<div class="level-dot${i<w.level?' on':''}"></div>`).join('')}</div>
+        </div>
+      </div>
+      <button class="bookmark-btn" onclick="event.stopPropagation();toggleBookmark(${w.id},this)">${bookmarks.has(w.id)?'❤️':'🤍'}</button>
+    `;
+    el.onclick = () => openModal(w);
+    list.appendChild(el);
+  });
+}
+
+async function toggleBookmark(wordId, btn) {
+  const next = !bookmarks.has(wordId);
+  if (next) bookmarks.add(wordId); else bookmarks.delete(wordId);
+  btn.textContent = next ? '❤️' : '🤍';
+  await api('/api/bookmark', 'POST', { word_id: wordId, state: next });
+}
+
+// ── 단어 모달 ────────────────────────────────────────────
+async function openModal(word) {
+  currentModalWord = word;
+  document.getElementById('word-modal').classList.add('show');
+  document.getElementById('m-english').textContent = word.english;
+  document.getElementById('m-pron').textContent = word.pronunciation;
+  document.getElementById('m-meaning').textContent = word.korean;
+  document.getElementById('m-example').textContent = word.sentence;
+  document.getElementById('m-example-ko').textContent = word.sentence_ko;
+  document.getElementById('m-level').textContent = '⭐'.repeat(word.level);
+  document.getElementById('m-bookmark').textContent = bookmarks.has(word.id) ? '❤️' : '🤍';
+
+  const detail = await api('/api/words/' + word.id);
+  const prog = detail.progress || {};
+  document.getElementById('m-correct').textContent = prog.correct || 0;
+  document.getElementById('m-wrong').textContent = prog.wrong || 0;
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('word-modal')) {
+    document.getElementById('word-modal').classList.remove('show');
+  }
+}
+
+async function toggleModalBookmark() {
+  if (!currentModalWord) return;
+  const next = !bookmarks.has(currentModalWord.id);
+  if (next) bookmarks.add(currentModalWord.id); else bookmarks.delete(currentModalWord.id);
+  document.getElementById('m-bookmark').textContent = next ? '❤️' : '🤍';
+  await api('/api/bookmark', 'POST', { word_id: currentModalWord.id, state: next });
+  renderWordList();
+}
+
+function speakWord() {
+  if (!currentModalWord) return;
+  const utter = new SpeechSynthesisUtterance(currentModalWord.english);
+  utter.lang = 'en-US';
+  utter.rate = 0.9;
+  speechSynthesis.speak(utter);
+}
+
+function quizThis() {
+  document.getElementById('word-modal').classList.remove('show');
+  currentCatFilter = currentModalWord ? currentModalWord.category : 'all';
+  goPage('quiz');
+  loadQuiz();
+}
+
+// ── 통계 ─────────────────────────────────────────────────
+async function loadStats() {
+  const data = await api('/api/stats');
+  document.getElementById('stat-correct').textContent = data.total_correct;
+  document.getElementById('stat-accuracy').textContent = data.accuracy;
+  document.getElementById('stat-diamonds').textContent = data.diamonds;
+  document.getElementById('s-learned').textContent = data.learned_words;
+  document.getElementById('s-streak').textContent = data.streak;
+  document.getElementById('s-xp').textContent = data.xp;
+  document.getElementById('s-total').textContent = data.total_words;
+
+  // 주간 막대 그래프
+  const days = ['일','월','화','수','목','금','토'];
+  const today = new Date();
+  const bars = document.getElementById('weekly-bars');
+  bars.innerHTML = '';
+  const logMap = {};
+  (data.weekly_log || []).forEach(l => { logMap[l.log_date] = l; });
+  const maxQ = Math.max(1, ...Object.values(logMap).map(l => l.questions));
+
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    const log = logMap[dateStr];
+    const pct = log ? Math.max(5, Math.round(log.questions / maxQ * 100)) : 0;
+    const dayLabel = days[d.getDay()];
+    bars.innerHTML += `
+      <div class="week-bar-wrap">
+        <div class="week-bar-bg" style="height:80px;">
+          <div class="week-bar-fill" style="height:${pct}%;"></div>
+        </div>
+        <div class="week-bar-day">${dayLabel}</div>
+      </div>`;
+  }
+
+  // 리그 리스트 (시뮬레이션)
+  const leagueList = document.getElementById('league-list');
+  const fakeLeague = [
+    { name: '나', xp: data.xp, me: true },
+    { name: '영어왕 민준', xp: data.xp + 420 },
+    { name: '단어마스터', xp: data.xp + 310 },
+    { name: '토익900점', xp: data.xp + 150 },
+    { name: '회화달인', xp: Math.max(0, data.xp - 80) },
+  ].sort((a, b) => b.xp - a.xp);
+
+  leagueList.innerHTML = '';
+  fakeLeague.forEach((entry, i) => {
+    leagueList.innerHTML += `
+      <div class="league-entry${entry.me ? ' me' : ''}">
+        <div class="league-rank${i < 3 ? ' top' : ''}">${['🥇','🥈','🥉'][i] || (i+1)}</div>
+        <div class="league-name">${entry.name}${entry.me ? ' (나)' : ''}</div>
+        <div class="league-xp">${entry.xp} XP</div>
+      </div>`;
+  });
+}
+
+// ── API 헬퍼 ─────────────────────────────────────────────
+async function api(url, method = 'GET', body = null) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  return res.json();
+}
+
+// ── 초기 로드 ─────────────────────────────────────────────
+loadHome();
+</script>
+</body>
+</html>
